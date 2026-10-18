@@ -1,0 +1,4 @@
+ollamaHost = "http://localhost:11434"
+embeddingModel = "embeddinggemma-2:740m"
+topK = 5
+dimensions = 768
