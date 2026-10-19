@@ -30,7 +30,6 @@ func Open(ctx context.Context, config config) (*KV, error) {
 	index := xvec.NewHNSWIndexParams(xvec.MetricTypeCosine)
 	schema := xvec.NewCollectionSchema(
 		"memory",
-		xvec.NewField(keyFieldID, xvec.DataTypeString),
 		xvec.NewField(keyFieldFact, xvec.DataTypeString),
 		xvec.FieldSchema{
 			Name:      keyFieldEmbedding,

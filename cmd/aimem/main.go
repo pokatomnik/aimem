@@ -4,27 +4,20 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 )
 
 func main() {
 	ctx := context.Background()
-	// remember, _, err := scaffold(ctx)
-	_, recall, err := scaffold(ctx)
+
+	root, db, err := scaffold(ctx)
+	defer db.Close()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	facts, err := recall.Recall(ctx, "Алкоголь")
-	if err != nil {
-		log.Fatal(err)
+	if err := root.ExecuteContext(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+		os.Exit(1)
 	}
-
-	fmt.Println(facts)
-
-	// err = remember.Remember(ctx, "Детям нельзя пить водку")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	fmt.Println("Done")
 }

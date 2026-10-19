@@ -14,7 +14,6 @@ func (k *KV) AddFact(ctx context.Context, vector []float32, content string) erro
 	id := uuid.New()
 
 	document, err := xvec.NewDocument(id.String(), map[string]any{
-		"id":              id.String(),
 		keyFieldFact:      content,
 		keyFieldEmbedding: xvec.VectorFP32(vector),
 	})
@@ -29,7 +28,7 @@ func (k *KV) AddFact(ctx context.Context, vector []float32, content string) erro
 
 	for _, result := range results {
 		if result.Err != nil {
-			return err
+			return result.Err
 		}
 	}
 
@@ -42,7 +41,7 @@ func (k *KV) GetFacts(ctx context.Context, vector []float32, topK int) (facts []
 		DenseVector: xvec.VectorFP32(vector),
 		TopK:        topK,
 		Projection: xvec.Projection{
-			OutputFields: []string{keyFieldID, keyFieldFact},
+			OutputFields: []string{keyFieldFact},
 		},
 	})
 	if err != nil {
@@ -51,16 +50,6 @@ func (k *KV) GetFacts(ctx context.Context, vector []float32, topK int) (facts []
 
 	facts = make([]fact.Fact, 0, len(results))
 	for _, result := range results {
-		id, ok := result.Fields[keyFieldID].(string)
-		if !ok {
-			return nil, fmt.Errorf(
-				"%w: key: %s, value: %v is not of type string",
-				apperrors.ErrorDBConvertError,
-				keyFieldID,
-				result.Fields[keyFieldID],
-			)
-		}
-
 		content, ok := result.Fields[keyFieldFact].(string)
 		if !ok {
 			return nil, fmt.Errorf(
@@ -72,7 +61,7 @@ func (k *KV) GetFacts(ctx context.Context, vector []float32, topK int) (facts []
 		}
 
 		facts = append(facts, fact.Fact{
-			ID:      id,
+			ID:      result.PrimaryKey,
 			Content: content,
 		})
 	}
