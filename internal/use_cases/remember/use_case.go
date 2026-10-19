@@ -8,45 +8,41 @@ import (
 )
 
 type (
-	embedder interface {
-		GetEmbeddings(ctx context.Context, texts ...string) (ollama.Embeddings, error)
+	ai interface {
+		GetEmbeddings(ctx context.Context, text string) (ollama.Embeddings, error)
+		Summarize(ctx context.Context, text string) (string, error)
 	}
 
 	store interface {
-		AddFact(ctx context.Context, vector []float32, content string) error
+		AddFact(ctx context.Context, vector []float32, summary, content string) error
 	}
 
 	Remember struct {
-		e embedder
-		s store
+		ai ai
+		st store
 	}
 )
 
-func New(e embedder, s store) *Remember {
+func New(e ai, s store) *Remember {
 	return &Remember{e, s}
 }
 
-func (r *Remember) Remember(ctx context.Context, facts ...string) error {
-	embeddings, err := r.e.GetEmbeddings(ctx, facts...)
+func (r *Remember) Remember(ctx context.Context, fact string) (string, error) {
+	summary, embeddings, err := r.getEmbeddingsAndSummary(ctx, fact)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	if len(embeddings) != len(facts) {
-		return apperrors.ErrorEmbeddingsQuantityNotEqualToFactsQuantity
+	if len(embeddings) != 1 {
+		return "", apperrors.ErrorEmbeddingsQuantityNotEqualToFactsQuantity
 	}
 
-	// TODO: think about batched calls
-	for i := range embeddings {
-		f := facts[i]
-		e := embeddings[i]
+	embedding := embeddings[0]
+	err = r.st.AddFact(ctx, embedding, summary, fact)
 
-		err = r.s.AddFact(ctx, e, f)
-
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return "", err
 	}
 
-	return nil
+	return summary, nil
 }

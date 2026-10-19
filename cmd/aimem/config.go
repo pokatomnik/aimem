@@ -14,6 +14,9 @@ type Config struct {
 	// e.g. "nomic-embed-text:latest"
 	EmbeddingModel string `toml:"embeddingModel"`
 
+	// e.g. "gemma4:e2b"
+	SummarizationModel string `tomk:"summarizationModel"`
+
 	// How many results to get max
 	TopK int `toml:"topK"`
 
@@ -31,6 +34,10 @@ func (c *Config) GetOllamaHost() string {
 
 func (c *Config) GetEmbeddingModel() string {
 	return c.EmbeddingModel
+}
+
+func (c *Config) GetSummarizationModel() string {
+	return c.SummarizationModel
 }
 
 func (c *Config) GetTopK() int {

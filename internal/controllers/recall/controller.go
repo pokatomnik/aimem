@@ -27,7 +27,8 @@ func RecallCmd(r recaller, nested ...*cobra.Command) *cobra.Command {
 
 			fmt.Println("Here is some related info:")
 			for i, fact := range facts {
-				fmt.Printf("[%d]: %s\n", i+1, fact.Content)
+				fmt.Printf("[%d]: %s\n", i+1, fact.Summary)
+				fmt.Printf("     %s...\n", fact.Content[:min(len(fact.Content), 500)])
 			}
 
 			return nil

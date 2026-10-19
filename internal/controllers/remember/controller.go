@@ -8,7 +8,7 @@ import (
 )
 
 type rememberer interface {
-	Remember(ctx context.Context, facts ...string) error
+	Remember(ctx context.Context, fact string) (string, error)
 }
 
 func RememberCmd(r rememberer, nested ...*cobra.Command) *cobra.Command {
@@ -19,12 +19,12 @@ func RememberCmd(r rememberer, nested ...*cobra.Command) *cobra.Command {
 		Short:         "Remember a fact",
 		Args:          cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := r.Remember(cmd.Context(), args[0])
+			summary, err := r.Remember(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
 
-			fmt.Println("I remembered")
+			fmt.Printf("I remembered: \"%s\"\n", summary)
 
 			return nil
 		},

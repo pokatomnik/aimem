@@ -12,11 +12,11 @@ import (
 	"github.com/pokatomnik/gomem/internal/entities/ollama"
 )
 
-func (o *OllamaClient) GetEmbeddings(ctx context.Context, texts ...string) (ollama.Embeddings, error) {
+func (o *OllamaClient) GetEmbeddings(ctx context.Context, text string) (ollama.Embeddings, error) {
 	baseHost := o.getHost()
 	oer := OllamaEmbedRequest{
 		Model:      o.config.GetEmbeddingModel(),
-		Input:      texts,
+		Input:      []string{text},
 		Dimensions: o.config.GetDimensions(),
 	}
 

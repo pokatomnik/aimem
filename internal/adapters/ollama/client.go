@@ -8,6 +8,7 @@ import (
 type OllamaConfig interface {
 	GetOllamaHost() string
 	GetEmbeddingModel() string
+	GetSummarizationModel() string
 	GetDimensions() uint32
 }
 

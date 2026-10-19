@@ -10,10 +10,11 @@ import (
 	"github.com/pokatomnik/gomem/internal/entities/fact"
 )
 
-func (k *KV) AddFact(ctx context.Context, vector []float32, content string) error {
+func (k *KV) AddFact(ctx context.Context, vector []float32, summary, content string) error {
 	id := uuid.New()
 
 	document, err := xvec.NewDocument(id.String(), map[string]any{
+		keyFieldSummary:   summary,
 		keyFieldFact:      content,
 		keyFieldEmbedding: xvec.VectorFP32(vector),
 	})
@@ -41,7 +42,7 @@ func (k *KV) GetFacts(ctx context.Context, vector []float32, topK int) (facts []
 		DenseVector: xvec.VectorFP32(vector),
 		TopK:        topK,
 		Projection: xvec.Projection{
-			OutputFields: []string{keyFieldFact},
+			OutputFields: []string{keyFieldSummary, keyFieldFact},
 		},
 	})
 	if err != nil {
@@ -50,6 +51,16 @@ func (k *KV) GetFacts(ctx context.Context, vector []float32, topK int) (facts []
 
 	facts = make([]fact.Fact, 0, len(results))
 	for _, result := range results {
+		summary, ok := result.Fields[keyFieldSummary].(string)
+		if !ok {
+			return nil, fmt.Errorf(
+				"%w: key: %s, value: %v is not of type string",
+				apperrors.ErrorDBConvertError,
+				keyFieldSummary,
+				result.Fields[keyFieldSummary],
+			)
+		}
+
 		content, ok := result.Fields[keyFieldFact].(string)
 		if !ok {
 			return nil, fmt.Errorf(
@@ -62,6 +73,7 @@ func (k *KV) GetFacts(ctx context.Context, vector []float32, topK int) (facts []
 
 		facts = append(facts, fact.Fact{
 			ID:      result.PrimaryKey,
+			Summary: summary,
 			Content: content,
 		})
 	}

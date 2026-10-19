@@ -23,6 +23,24 @@ type (
 		Model      string      `json:"model"`
 		Embeddings [][]float32 `json:"embeddings"`
 	}
+
+	OllamaGenerateOptions struct {
+		NumPredict uint32 `json:"num_predict"`
+	}
+
+	OllamaSummarizationRequest struct {
+		Model   string                `json:"model"`
+		Prompt  string                `json:"prompt"`
+		System  string                `json:"system"`
+		Stream  bool                  `json:"stream"`
+		Think   bool                  `json:"think"`
+		Options OllamaGenerateOptions `json:"options"`
+	}
+
+	OllamaSummarizationResponse struct {
+		Model    string `json:"model"`
+		Response string `json:"response"`
+	}
 )
 
 const (

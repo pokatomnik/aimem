@@ -11,6 +11,7 @@ var (
 	// Ollama client errors
 	ErrorCannotGetModels = errors.New("ollama cannot get models")
 	ErrorGetEmbeddings   = errors.New("ollama cannot get embeddings")
+	ErrorSummarize       = errors.New("ollama cannot summarize")
 
 	// Business logic errors
 	ErrorEmbeddingsQuantityNotEqualToFactsQuantity = errors.New("embeddings quantity does not equal to facts quantity")

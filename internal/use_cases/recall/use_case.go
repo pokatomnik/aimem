@@ -10,7 +10,7 @@ import (
 
 type (
 	embedder interface {
-		GetEmbeddings(ctx context.Context, texts ...string) (ollama.Embeddings, error)
+		GetEmbeddings(ctx context.Context, text string) (ollama.Embeddings, error)
 	}
 
 	store interface {
