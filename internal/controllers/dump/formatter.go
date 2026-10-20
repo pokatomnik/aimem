@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/pokatomnik/gomem/internal/shared/message"
 )
 
 type Formatter struct{}
 
 func (f *Formatter) Write(data []byte) (int, error) {
 	factStr := string(data)
-	fact := BareFact{
-		Fact: factStr,
+	fact := message.Message{
+		Data: factStr,
 	}
 
 	factJSON, err := json.Marshal(fact)
