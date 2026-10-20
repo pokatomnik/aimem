@@ -7,11 +7,13 @@ import (
 	"github.com/spf13/cobra"
 
 	aOllamaPackage "github.com/pokatomnik/gomem/internal/adapters/ollama"
+	cmdDumpPackage "github.com/pokatomnik/gomem/internal/controllers/dump"
 	cmdGetFactPackage "github.com/pokatomnik/gomem/internal/controllers/getfact"
 	cmdRecallPackage "github.com/pokatomnik/gomem/internal/controllers/recall"
 	cmdRememberPackage "github.com/pokatomnik/gomem/internal/controllers/remember"
 	cmdRootPackage "github.com/pokatomnik/gomem/internal/controllers/root"
 	rKVPackage "github.com/pokatomnik/gomem/internal/repositories/kv"
+	ucDumpPackage "github.com/pokatomnik/gomem/internal/use_cases/dump"
 	ucGetFactPackage "github.com/pokatomnik/gomem/internal/use_cases/getfact"
 	ucRecallPackage "github.com/pokatomnik/gomem/internal/use_cases/recall"
 	ucRememberPackage "github.com/pokatomnik/gomem/internal/use_cases/remember"
@@ -35,11 +37,13 @@ func scaffold(ctx context.Context) (*cobra.Command, *rKVPackage.KV, error) {
 	rem := ucRememberPackage.New(ollama, db)
 	rec := ucRecallPackage.New(ollama, db, config)
 	fac := ucGetFactPackage.New(db)
+	dum := ucDumpPackage.New(db)
 
 	remember := cmdRememberPackage.RememberCmd(rem)
 	recall := cmdRecallPackage.RecallCmd(rec)
 	getFact := cmdGetFactPackage.GetFactCmd(fac)
-	root := cmdRootPackage.RootCmd(remember, recall, getFact)
+	dump := cmdDumpPackage.DumpCmd(dum)
+	root := cmdRootPackage.RootCmd(remember, recall, getFact, dump)
 
 	return root, db, nil
 }
