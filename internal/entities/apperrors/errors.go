@@ -16,4 +16,5 @@ var (
 	// Business logic errors
 	ErrorEmbeddingsQuantityNotEqualToFactsQuantity = errors.New("embeddings quantity does not equal to facts quantity")
 	ErrorEmptyEmbeddings                           = errors.New("empty embeddings list")
+	ErrorFactDoesNotExist                          = errors.New("document does not exist")
 )

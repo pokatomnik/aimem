@@ -1,7 +1,14 @@
 package fact
 
-type Fact struct {
-	ID      string
-	Summary string
-	Content string
-}
+type (
+	FactListView struct {
+		ID      string
+		Summary string
+	}
+
+	FactFullView struct {
+		ID      string
+		Summary string
+		Content string
+	}
+)

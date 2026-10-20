@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pokatomnik/gomem/internal/shared/colors"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +25,11 @@ func RememberCmd(r rememberer, nested ...*cobra.Command) *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("I remembered: \"%s\"\n", summary)
+			fmt.Printf(
+				"%s:\n \"%s\"\n",
+				colors.Primary().Sprint("I remembered"),
+				summary,
+			)
 
 			return nil
 		},

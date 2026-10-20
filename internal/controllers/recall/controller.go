@@ -5,11 +5,12 @@ import (
 	"fmt"
 
 	"github.com/pokatomnik/gomem/internal/entities/fact"
+	"github.com/pokatomnik/gomem/internal/shared/colors"
 	"github.com/spf13/cobra"
 )
 
 type recaller interface {
-	Recall(ctx context.Context, query string) ([]fact.Fact, error)
+	Recall(ctx context.Context, query string) ([]fact.FactListView, error)
 }
 
 func RecallCmd(r recaller, nested ...*cobra.Command) *cobra.Command {
@@ -25,10 +26,13 @@ func RecallCmd(r recaller, nested ...*cobra.Command) *cobra.Command {
 				return err
 			}
 
-			fmt.Println("Here is some related info:")
-			for i, fact := range facts {
-				fmt.Printf("[%d]: %s\n", i+1, fact.Summary)
-				fmt.Printf("     %s...\n", fact.Content[:min(len(fact.Content), 500)])
+			colors.Primary().Println("Here is some related info:")
+			for _, fact := range facts {
+				fmt.Printf(
+					"%s: %s\n",
+					colors.Secondary().Sprintf("[%s]", fact.ID),
+					fact.Summary,
+				)
 			}
 
 			return nil

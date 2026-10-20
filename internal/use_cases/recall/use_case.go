@@ -14,7 +14,7 @@ type (
 	}
 
 	store interface {
-		GetFacts(ctx context.Context, vector []float32, topK int) (facts []fact.Fact, err error)
+		GetFactsList(ctx context.Context, vector []float32, topK int) (facts []fact.FactListView, err error)
 	}
 
 	config interface {
@@ -32,23 +32,23 @@ func New(e embedder, s store, c config) *Recall {
 	return &Recall{e, s, c}
 }
 
-func (r *Recall) Recall(ctx context.Context, question string) ([]fact.Fact, error) {
+func (r *Recall) Recall(ctx context.Context, question string) ([]fact.FactListView, error) {
 	embeddings, err := r.e.GetEmbeddings(ctx, question)
 	if err != nil {
-		return []fact.Fact{}, err
+		return []fact.FactListView{}, err
 	}
 
 	if len(embeddings) == 0 {
-		return []fact.Fact{}, apperrors.ErrorEmptyEmbeddings
+		return []fact.FactListView{}, apperrors.ErrorEmptyEmbeddings
 	}
 
-	facts, err := r.s.GetFacts(
+	facts, err := r.s.GetFactsList(
 		ctx,
 		[]float32(embeddings[0]),
 		r.c.GetTopK(),
 	)
 	if err != nil {
-		return []fact.Fact{}, err
+		return []fact.FactListView{}, err
 	}
 
 	return facts, nil
