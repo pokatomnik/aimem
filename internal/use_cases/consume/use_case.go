@@ -33,39 +33,51 @@ func New(ai ai, s store, r receiver) *Consumer {
 	return &Consumer{ai, s, r}
 }
 
-func (d *Consumer) Consume(ctx context.Context) error {
+func (d *Consumer) Consume(ctx context.Context) []error {
+	errs := make([]error, 0)
+
 	for {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			break
 		}
 
 		// packed message
 		data, err := d.r.Receive()
 		if errors.Is(err, io.EOF) {
 			if len(data) == 0 {
-				return nil
+				break
 			}
 
 			fact, err := unpack(data)
 			if err != nil {
-				return err
+				errs = append(errs, err)
+				continue
 			}
 
-			return d.addFact(ctx, fact)
+			err = d.addFact(ctx, fact)
+			if err != nil {
+				errs = append(errs, err)
+			}
+			break
 		}
 
 		if err != nil {
-			return err
+			errs = append(errs, err)
+			break
 		}
 
 		fact, err := unpack(data)
 		if err != nil {
-			return err
+			errs = append(errs, err)
+			continue
 		}
 
 		err = d.addFact(ctx, fact)
 		if err != nil {
-			return err
+			errs = append(errs, err)
+			continue
 		}
 	}
+
+	return errs
 }

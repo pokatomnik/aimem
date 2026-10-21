@@ -2,12 +2,13 @@ package consume
 
 import (
 	"context"
+	"errors"
 
 	"github.com/spf13/cobra"
 )
 
 type consumer interface {
-	Consume(ctx context.Context) error
+	Consume(ctx context.Context) []error
 }
 
 func Consume(c consumer, nested ...*cobra.Command) *cobra.Command {
@@ -18,7 +19,13 @@ func Consume(c consumer, nested ...*cobra.Command) *cobra.Command {
 		Short:         "Imports facts from stdin",
 		Args:          cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return c.Consume(cmd.Context())
+			errs := c.Consume(cmd.Context())
+
+			if len(errs) != 0 {
+				return errors.Join(errs...)
+			}
+
+			return nil
 		},
 	}
 
