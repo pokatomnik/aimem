@@ -19,6 +19,9 @@ type Config struct {
 
 	// Embedding dimensions
 	Dimensions uint32 `toml:"dimensions"`
+
+	// e.g. http://127.0.0.1:8080
+	MCPHTTPHost string `toml:"mcpHttpHost"`
 }
 
 func (c *Config) GetDimensions() uint32 {
@@ -39,4 +42,8 @@ func (c *Config) GetSummarizationModel() string {
 
 func (c *Config) GetTopK() int {
 	return c.TopK
+}
+
+func (c *Config) GetMCPHTTPHost() string {
+	return c.MCPHTTPHost
 }

@@ -8,3 +8,6 @@ topK = 5
 # Embedding model dimensions
 # Do not change this value if DB is initialized
 dimensions = 768
+
+# MCP HTTP transport host
+mcpHttpHost = "127.0.0.1:8090"
