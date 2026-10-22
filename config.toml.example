@@ -1,4 +1,5 @@
 ollamaHost = "http://localhost:11434"
 embeddingModel = "embeddinggemma-2:740m"
+summarizationModel = "gemma4:e2b"
 topK = 5
 dimensions = 768
