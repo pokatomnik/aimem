@@ -7,6 +7,9 @@ var (
 	ErrDBConvertError = errors.New("db convert error")
 	ErrAlreadyHasFact = errors.New("db already has fact")
 
+	// Config errors
+	ErrConfigNotInitialized = errors.New("config not initialized")
+
 	// Ollama client errors
 	ErrCannotGetModels = errors.New("ollama cannot get models")
 	ErrGetEmbeddings   = errors.New("ollama cannot get embeddings")

@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	config "github.com/pokatomnik/gomem/cmd/aimem/config"
 	aInputPackage "github.com/pokatomnik/gomem/internal/adapters/input"
 	aOllamaPackage "github.com/pokatomnik/gomem/internal/adapters/ollama"
 	cmdConsumePackage "github.com/pokatomnik/gomem/internal/controllers/consume"
@@ -24,23 +25,23 @@ import (
 )
 
 func scaffold(ctx context.Context) (*cobra.Command, *rKVPackage.KV, error) {
-	config, err := InitConfig()
+	cfg, err := config.InitConfig()
 	if err != nil {
 		return nil, nil, err
 	}
 
 	client := http.DefaultClient
 
-	ollama := aOllamaPackage.New(client, config)
+	ollama := aOllamaPackage.New(client, cfg)
 	input := aInputPackage.New(os.Stdin)
 
-	db, err := rKVPackage.Open(ctx, config)
+	db, err := rKVPackage.Open(ctx, cfg)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	rem := ucRememberPackage.New(ollama, db)
-	rec := ucRecallPackage.New(ollama, db, config)
+	rec := ucRecallPackage.New(ollama, db, cfg)
 	fac := ucGetFactPackage.New(db)
 	dum := ucDumpPackage.New(db)
 	con := ucConsumePackage.New(ollama, db, input)

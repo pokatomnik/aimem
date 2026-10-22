@@ -1,5 +1,10 @@
 ollamaHost = "http://localhost:11434"
 embeddingModel = "embeddinggemma-2:740m"
 summarizationModel = "gemma4:e2b"
+
+# How many results to search
 topK = 5
+
+# Embedding model dimensions
+# Do not change this value if DB is initialized
 dimensions = 768

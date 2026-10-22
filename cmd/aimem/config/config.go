@@ -1,10 +1,7 @@
-package main
+package config
 
 import (
-	"os"
-	"path"
-
-	toml "github.com/pelletier/go-toml/v2"
+	_ "embed"
 )
 
 type Config struct {
@@ -42,27 +39,4 @@ func (c *Config) GetSummarizationModel() string {
 
 func (c *Config) GetTopK() int {
 	return c.TopK
-}
-
-func InitConfig() (*Config, error) {
-	userHome, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-
-	configPath := path.Join(userHome, ".config", "aimem", "config.toml")
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	var config Config
-
-	err = toml.Unmarshal(data, &config)
-	if err != nil {
-		return nil, err
-	}
-
-	return &config, nil
 }
