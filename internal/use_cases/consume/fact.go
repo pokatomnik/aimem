@@ -13,7 +13,7 @@ func (d *Consumer) addFact(ctx context.Context, fact string) error {
 	}
 
 	if len(embeddings) != 1 {
-		return apperrors.ErrorEmbeddingsQuantityNotEqualToFactsQuantity
+		return apperrors.ErrEmbeddingsQuantityNotEqualToFactsQuantity
 	}
 
 	embedding := embeddings[0]

@@ -52,7 +52,7 @@ func (o *OllamaClient) Summarize(ctx context.Context, text string) (string, erro
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return "", apperrors.ErrorSummarize
+		return "", apperrors.ErrSummarize
 	}
 
 	data, err := io.ReadAll(res.Body)

@@ -28,7 +28,7 @@ func (k *KV) GetFactsList(ctx context.Context, vector []float32, topK int) (fact
 		if !ok {
 			return nil, fmt.Errorf(
 				"%w: key: %s, value: %v is not of type string",
-				apperrors.ErrorDBConvertError,
+				apperrors.ErrDBConvertError,
 				keyFieldCreatedAt,
 				result.Fields[keyFieldCreatedAt],
 			)
@@ -38,7 +38,7 @@ func (k *KV) GetFactsList(ctx context.Context, vector []float32, topK int) (fact
 		if !ok {
 			return nil, fmt.Errorf(
 				"%w: key: %s, value: %v is not of type string",
-				apperrors.ErrorDBConvertError,
+				apperrors.ErrDBConvertError,
 				keyFieldSummary,
 				result.Fields[keyFieldSummary],
 			)

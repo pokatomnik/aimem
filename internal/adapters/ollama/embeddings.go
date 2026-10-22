@@ -44,7 +44,7 @@ func (o *OllamaClient) GetEmbeddings(ctx context.Context, text string) (ollama.E
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return ollama.Embeddings{}, apperrors.ErrorGetEmbeddings
+		return ollama.Embeddings{}, apperrors.ErrGetEmbeddings
 	}
 
 	data, err := io.ReadAll(res.Body)

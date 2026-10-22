@@ -30,7 +30,7 @@ func (o *OllamaClient) LSEmbeddingModels(ctx context.Context) ([]ollama.OllamaMo
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return []ollama.OllamaModel{}, apperrors.ErrorCannotGetModels
+		return []ollama.OllamaModel{}, apperrors.ErrCannotGetModels
 	}
 
 	data, err := io.ReadAll(res.Body)

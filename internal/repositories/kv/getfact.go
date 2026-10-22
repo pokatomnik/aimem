@@ -22,7 +22,7 @@ func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, err
 	}
 
 	if len(result) == 0 {
-		return fact.FactFullView{}, apperrors.ErrorFactDoesNotExist
+		return fact.FactFullView{}, apperrors.ErrFactDoesNotExist
 	}
 
 	doc := result[0]
@@ -31,7 +31,7 @@ func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, err
 	if !ok {
 		return fact.FactFullView{}, fmt.Errorf(
 			"%w: key: %s, value: %v is not of type string",
-			apperrors.ErrorDBConvertError,
+			apperrors.ErrDBConvertError,
 			keyFieldCreatedAt,
 			doc.Fields[keyFieldCreatedAt],
 		)
@@ -41,7 +41,7 @@ func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, err
 	if !ok {
 		return fact.FactFullView{}, fmt.Errorf(
 			"%w: key: %s, value: %v is not of type string",
-			apperrors.ErrorDBConvertError,
+			apperrors.ErrDBConvertError,
 			keyFieldSummary,
 			doc.Fields[keyFieldSummary],
 		)
@@ -51,7 +51,7 @@ func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, err
 	if !ok {
 		return fact.FactFullView{}, fmt.Errorf(
 			"%w: key: %s, value: %v is not of type string",
-			apperrors.ErrorDBConvertError,
+			apperrors.ErrDBConvertError,
 			keyFieldFact,
 			doc.Fields[keyFieldFact],
 		)

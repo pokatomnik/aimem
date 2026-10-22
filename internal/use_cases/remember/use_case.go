@@ -34,7 +34,7 @@ func (r *Remember) Remember(ctx context.Context, fact string) (string, error) {
 	}
 
 	if len(embeddings) != 1 {
-		return "", apperrors.ErrorEmbeddingsQuantityNotEqualToFactsQuantity
+		return "", apperrors.ErrEmbeddingsQuantityNotEqualToFactsQuantity
 	}
 
 	embedding := embeddings[0]

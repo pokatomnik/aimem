@@ -39,7 +39,7 @@ func (r *Recall) Recall(ctx context.Context, question string) ([]fact.FactListVi
 	}
 
 	if len(embeddings) == 0 {
-		return []fact.FactListView{}, apperrors.ErrorEmptyEmbeddings
+		return []fact.FactListView{}, apperrors.ErrEmptyEmbeddings
 	}
 
 	facts, err := r.s.GetFactsList(
