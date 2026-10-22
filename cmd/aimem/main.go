@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/pokatomnik/gomem/cmd/aimem/config"
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
@@ -24,8 +26,22 @@ func main() {
 	}
 	defer db.Close()
 
-	if err := root.ExecuteContext(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
-		os.Exit(1)
+	ctx, stop := signal.NotifyContext(
+		ctx,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+		syscall.SIGINT,
+	)
+	defer stop()
+
+	err = root.ExecuteContext(ctx)
+	if errors.Is(err, context.Canceled) {
+		fmt.Println("Cancelled")
+
+		return
+	}
+
+	if err != nil {
+		log.Fatalf("Error: %s\n", err.Error())
 	}
 }
