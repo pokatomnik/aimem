@@ -12,7 +12,7 @@ type Config struct {
 	EmbeddingModel string `toml:"embeddingModel"`
 
 	// e.g. "gemma4:e2b"
-	SummarizationModel string `tomk:"summarizationModel"`
+	SummarizationModel string `toml:"summarizationModel"`
 
 	// How many results to get max
 	TopK int `toml:"topK"`
