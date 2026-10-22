@@ -15,7 +15,7 @@ func (k *KV) GetFactsList(ctx context.Context, vector []float32, topK int) (fact
 		DenseVector: xvec.VectorFP32(vector),
 		TopK:        topK,
 		Projection: xvec.Projection{
-			OutputFields: []string{keyFieldSummary},
+			OutputFields: []string{keyFieldCreatedAt, keyFieldSummary},
 		},
 	})
 	if err != nil {
@@ -24,6 +24,16 @@ func (k *KV) GetFactsList(ctx context.Context, vector []float32, topK int) (fact
 
 	facts = make([]fact.FactListView, 0, len(results))
 	for _, result := range results {
+		createdAt, ok := result.Fields[keyFieldCreatedAt].(string)
+		if !ok {
+			return nil, fmt.Errorf(
+				"%w: key: %s, value: %v is not of type string",
+				apperrors.ErrorDBConvertError,
+				keyFieldCreatedAt,
+				result.Fields[keyFieldCreatedAt],
+			)
+		}
+
 		summary, ok := result.Fields[keyFieldSummary].(string)
 		if !ok {
 			return nil, fmt.Errorf(
@@ -35,8 +45,9 @@ func (k *KV) GetFactsList(ctx context.Context, vector []float32, topK int) (fact
 		}
 
 		facts = append(facts, fact.FactListView{
-			ID:      result.PrimaryKey,
-			Summary: summary,
+			ID:        result.PrimaryKey,
+			CreatedAt: createdAt,
+			Summary:   summary,
 		})
 	}
 

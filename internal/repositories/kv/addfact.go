@@ -2,15 +2,17 @@ package kv
 
 import (
 	"context"
-	"uuid"
+	"errors"
 
 	"github.com/gorse-io/xvec"
+	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 )
 
 func (k *KV) AddFact(ctx context.Context, vector []float32, summary, content string) error {
-	id := uuid.New()
+	id := k.hash(content)
 
-	document, err := xvec.NewDocument(id.String(), map[string]any{
+	document, err := xvec.NewDocument(id, map[string]any{
+		keyFieldCreatedAt: k.now(),
 		keyFieldSummary:   summary,
 		keyFieldFact:      content,
 		keyFieldEmbedding: xvec.VectorFP32(vector),
@@ -20,6 +22,10 @@ func (k *KV) AddFact(ctx context.Context, vector []float32, summary, content str
 	}
 
 	results, err := k.collection.Insert(ctx, []xvec.Document{document})
+	if errors.Is(err, xvec.ErrAlreadyExists) {
+		return apperrors.ErrorAlreadyHasFact
+	}
+
 	if err != nil {
 		return err
 	}
@@ -30,5 +36,5 @@ func (k *KV) AddFact(ctx context.Context, vector []float32, summary, content str
 		}
 	}
 
-	return nil
+	return k.appendPlainTextMessage(content)
 }

@@ -7,6 +7,7 @@ var (
 	ErrorDBRead         = errors.New("db read error")
 	ErrorDBWrite        = errors.New("db write error")
 	ErrorDBConvertError = errors.New("db convert error")
+	ErrorAlreadyHasFact = errors.New("db already has fact")
 
 	// Ollama client errors
 	ErrorCannotGetModels = errors.New("ollama cannot get models")

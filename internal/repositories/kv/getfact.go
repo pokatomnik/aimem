@@ -14,7 +14,7 @@ func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, err
 		ctx,
 		[]string{id},
 		xvec.Projection{
-			OutputFields: []string{keyFieldSummary, keyFieldFact},
+			OutputFields: []string{keyFieldCreatedAt, keyFieldSummary, keyFieldFact},
 		},
 	)
 	if err != nil {
@@ -26,6 +26,16 @@ func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, err
 	}
 
 	doc := result[0]
+
+	createdAt, ok := doc.Fields[keyFieldCreatedAt].(string)
+	if !ok {
+		return fact.FactFullView{}, fmt.Errorf(
+			"%w: key: %s, value: %v is not of type string",
+			apperrors.ErrorDBConvertError,
+			keyFieldCreatedAt,
+			doc.Fields[keyFieldCreatedAt],
+		)
+	}
 
 	summary, ok := doc.Fields[keyFieldSummary].(string)
 	if !ok {
@@ -48,8 +58,9 @@ func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, err
 	}
 
 	return fact.FactFullView{
-		ID:      id,
-		Summary: summary,
-		Content: content,
+		ID:        id,
+		CreatedAt: createdAt,
+		Summary:   summary,
+		Content:   content,
 	}, nil
 }

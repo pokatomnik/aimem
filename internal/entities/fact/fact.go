@@ -2,13 +2,15 @@ package fact
 
 type (
 	FactListView struct {
-		ID      string
-		Summary string
+		ID        string
+		CreatedAt string
+		Summary   string
 	}
 
 	FactFullView struct {
-		ID      string
-		Summary string
-		Content string
+		ID        string
+		CreatedAt string
+		Summary   string
+		Content   string
 	}
 )

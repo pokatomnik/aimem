@@ -16,6 +16,7 @@ type (
 	KV struct {
 		config     config
 		collection *xvec.Collection
+		dataPath   string
 	}
 )
 
@@ -30,6 +31,7 @@ func Open(ctx context.Context, config config) (*KV, error) {
 	index := xvec.NewHNSWIndexParams(xvec.MetricTypeCosine)
 	schema := xvec.NewCollectionSchema(
 		"memory",
+		xvec.NewField(keyFieldCreatedAt, xvec.DataTypeString),
 		xvec.NewField(keyFieldSummary, xvec.DataTypeString),
 		xvec.NewField(keyFieldFact, xvec.DataTypeString),
 		xvec.FieldSchema{
@@ -44,12 +46,20 @@ func Open(ctx context.Context, config config) (*KV, error) {
 
 	collection, err := xvec.Open(ctx, dataPath, options)
 	if err == nil {
-		return &KV{config, collection}, nil
+		return &KV{
+			config:     config,
+			collection: collection,
+			dataPath:   dataPath,
+		}, nil
 	}
 
 	collection, err = xvec.CreateAndOpen(ctx, dataPath, schema, options)
 	if err == nil {
-		return &KV{config, collection}, nil
+		return &KV{
+			config:     config,
+			collection: collection,
+			dataPath:   dataPath,
+		}, nil
 	}
 
 	return nil, err
