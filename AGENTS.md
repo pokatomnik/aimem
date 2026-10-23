@@ -27,6 +27,10 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
 - **No cancellation or timeouts.** Requests run without a deadline, so a slow backend blocks the CLI.
 - **Import is sequential**, and the write orchestration is duplicated between `remember` and `import`.
 
+## MCP Server Instructions
+
+`internal/adapters/servers/mcp/INSTRUCTIONS.md` is embedded and sent to the model as the MCP server's usage instructions. Keep it aligned with the MCP server and tool implementation: whenever a code change affects the server's purpose, available tools, inputs, outputs, behavior, or usage triggers, update this file in the same change. Keep the instructions concise and focused on when and how the model should use the tools, not on documenting implementation details.
+
 ## Build, Test, and Development Commands
 
 ```sh
