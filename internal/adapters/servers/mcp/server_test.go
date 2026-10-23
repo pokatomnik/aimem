@@ -143,6 +143,35 @@ func TestInstructionsMentionEveryTool(t *testing.T) {
 	}
 }
 
+func TestInstructionsCoverProactiveRecall(t *testing.T) {
+	cs, _ := connect(t, deps(&fakeDeps{}))
+
+	init := cs.InitializeResult()
+	if init == nil {
+		t.Fatal("no initialize result")
+	}
+
+	instr := init.Instructions
+
+	// Proactive recall is wanted, so the trigger must be stated explicitly
+	// rather than left to the user to ask for.
+	if !strings.Contains(instr, "When to recall without being asked") {
+		t.Error("instructions do not explain when to recall proactively")
+	}
+
+	// The anti-triggers matter as much as the triggers: recall on every
+	// message pollutes the answer and costs a round trip.
+	for _, want := range []string{"Don't recall when", "general question about programming", "every message"} {
+		if !strings.Contains(instr, want) {
+			t.Errorf("instructions lack a recall anti-trigger: %q", want)
+		}
+	}
+
+	if !strings.Contains(instr, "weakest source of truth") {
+		t.Error("instructions do not rank memory below the current context")
+	}
+}
+
 func TestRecallReturnsSummariesOnly(t *testing.T) {
 	f := &fakeDeps{}
 	cs, ctx := connect(t, deps(f))

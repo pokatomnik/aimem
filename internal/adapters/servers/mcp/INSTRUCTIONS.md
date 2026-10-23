@@ -1,48 +1,67 @@
 # AI Memory MCP Server
 
-This server gives the assistant access to aimem's persistent memory for facts and knowledge about the user. It can save a fact, find related memories by meaning, read a saved fact in full, and delete one. Use it for durable, useful context—not as a transcript or a general code-search tool.
+Persistent memory of facts and knowledge about the user. Save a fact, find related memories by meaning, read one in full, or delete one. Not a transcript, not a code search.
 
 ## When to use memory
 
-These are common triggers, not an exhaustive list or a restriction. Use the tools in other situations too whenever you judge that doing so would help preserve useful context or answer the user:
+Common triggers, not a restriction — use judgment:
 
-- **The user explicitly asks to remember or recall something.** Save the stated information, or search memory to answer a recall request.
-- **The user shares critically important information.** Decide whether it is important enough to be useful in future conversations and save it.
-- **The user shares personal information about themselves that is unrelated to code.** Save useful personal facts or preferences even if they did not explicitly ask.
+- **The user asks to remember or recall something.** Save it or search for it.
+- **The user shares important information** worth having in future conversations.
+- **The user shares personal facts or preferences.** Save them even without an explicit request.
+- **The message assumes context you lack.** Recall first — see below.
 
-Save only information the user actually provided; do not invent or silently embellish facts. Use judgment and avoid saving incidental details that are unlikely to be useful later.
+Save only what the user actually provided; never invent or embellish.
 
-Examples:
+## When to recall without being asked
 
-- “Remember that I prefer concise answers.” → call `remember`.
-- “What dates did I say I would be in Berlin?” → call `recall` with a natural-language query.
-- “I’m allergic to peanuts.” → call `remember` as personal information.
+Ask yourself: **does this message assume knowledge I lack — neither in this conversation nor in the repository?**
+
+Recall when:
+
+- **It refers to shared history.** “as we agreed”, “again”, “last time”, “the usual”.
+- **It names a project or system you cannot locate** in the current context.
+- **It states a preference or working style.** “keep it short”, “same style as before”.
+- **It is the first substantive message of a conversation**, about the user, their setup, or past work.
+- **It claims something about your past behaviour.** “you said”, “you recommended”.
+
+Don't recall when:
+
+- **The message answers itself** — a self-contained question, an error with a stack trace.
+- **It is a general question about programming**, not about this user. Memory holds facts, not docs.
+- **The context is already established**, unless the topic shifts.
+- **Work is in progress** — files and conversation are the source of truth.
+
+A few calls per conversation is normal. Recall on **every message** is not: each search is a round trip, and irrelevant memories crowd out the answer.
+
+## Memory is the weakest source of truth
+
+Current message > repository > earlier in this conversation > memory.
+
+Stored facts can be stale or wrong. If memory contradicts the code, say so rather than quietly following one. A weak match is not evidence that the user's premise is wrong — treat it as a lead, not a conclusion.
 
 ## Tools
 
-- **`remember`** — Save a fact or knowledge. Pass the fact as `fact`; the result is a short summary. Use for explicit save requests and information that meets the triggers above.
-- **`recall`** — Semantic search over saved memories using a natural-language `query`. Returns only the **top-K most relevant** matches, ranked by similarity, each with an ID, creation time, and a short **summary** — never the full text. Use it when the user asks what is remembered or when relevant past context is needed.
-- **`read_fact`** — Read one saved fact in full by its `id`, usually from a `recall` result. Use this whenever a summary is too short or too vague to answer from; the response contains the complete stored text as well as the summary.
-- **`remove_fact_by_id`** — Permanently delete one saved fact by its `id`, usually from a `recall` result. Use only when the user explicitly asks to forget something, or when a stored fact is wrong and the user agreed to remove it.
+- **`remember`** — save a fact; returns a short summary. That summary is what `recall` will later show, so write a self-contained statement.
+- **`recall`** — semantic search by natural-language `query`. Returns only the **top-K most relevant** matches with ID, date, and a short summary — never the full text.
+- **`read_fact`** — read one fact in full by `id` from `recall`. Use when a summary is too vague: exact wording, names, numbers, paths.
+- **`remove_fact_by_id`** — permanently delete a fact. Only when the user asks to forget something, or agrees that a stored fact is wrong.
 
 ## Recall returns relevance, not inventory
 
-The memory has no tool that lists everything it holds, and this is deliberate: the dataset is unbounded and dumping it would flood the context. `recall` is a relevance search, so it returns a capped set of best matches and nothing more. Two consequences to keep in mind:
+There is no tool that lists everything, deliberately: the set is unbounded and dumping it floods the context. So a short or empty result **does not mean memory is empty** — it means nothing scored high enough for that query. Never present recall results as the complete picture; rephrase and search again if you suspect more.
 
-- **A short or empty result does not mean memory is empty.** It means nothing scored high enough for that particular query. If the user asks what is stored and the results look thin, say that these are the most relevant matches rather than claiming it is the full picture.
-- **Do not infer completeness from recall.** Never tell the user that a list of `recall` results is everything that is saved. Rephrase queries and recall again when you suspect more exists.
+The `summary` field keeps `recall` cheap. It is a compressed pointer, not the record, and summarization drops details — follow it with `read_fact` when precision matters.
 
-The `summary` field exists to keep `recall` cheap: full facts can be long, and returning many of them at once would crowd out the actual conversation. The summary is a compressed stand-in, not the record itself, and summarization can drop details. When exact wording, names, numbers, paths, or configuration values matter, treat the summary as a pointer and call `read_fact`.
-
-If recall finds no relevant memory, say so rather than implying that the information was saved. Never claim a fact was remembered or retrieved unless the corresponding tool call succeeded.
+If nothing relevant is found, say so. Never claim a fact was remembered or retrieved unless the tool call succeeded.
 
 ## When to read more than one fact
 
-A `recall` result is a ranked list, and several entries can be relevant at once. Call `read_fact` for each entry whose summary you actually intend to rely on, not just the first one:
+Read every entry whose summary you intend to rely on, not just the first:
 
-- **The summaries overlap or seem to contradict each other.** One may be older or more specific; read both before you state anything as fact.
-- **The question asks about history or change over time.** Summaries carry dates but drop nuance, so read the entries spanning the period in question.
-- **The answer needs to be assembled from several partial summaries.** Read all of the ones you plan to combine.
-- **A summary mentions something the user's question depends on but does not spell out.** Read it before filling the gap yourself.
+- **Summaries overlap or contradict** — read both before stating anything as fact.
+- **The question is about history** — read the entries spanning that period.
+- **The answer combines several partial summaries.**
+- **A summary hints at something your answer depends on** but does not spell out.
 
-Don't read every match reflexively — that defeats the point of summaries. Read the ones you will quote, cite, compare, or build on.
+Don't read every match reflexively — only the ones you will quote, compare, or build on.
