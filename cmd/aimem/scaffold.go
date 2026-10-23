@@ -15,7 +15,6 @@ import (
 	aMCPHTTPPackage "github.com/pokatomnik/gomem/internal/adapters/servers/http"
 	aMCPStdIOPackage "github.com/pokatomnik/gomem/internal/adapters/servers/stdio"
 	cmdConsumePackage "github.com/pokatomnik/gomem/internal/controllers/consume"
-	cmdDumpPackage "github.com/pokatomnik/gomem/internal/controllers/dump"
 	cmdGetFactPackage "github.com/pokatomnik/gomem/internal/controllers/getfact"
 	cmdMCPHTTPPackage "github.com/pokatomnik/gomem/internal/controllers/http"
 	cmdMCPPackage "github.com/pokatomnik/gomem/internal/controllers/mcp"
@@ -25,7 +24,6 @@ import (
 	cmdMCPStdIOPackage "github.com/pokatomnik/gomem/internal/controllers/stdio"
 	rKVPackage "github.com/pokatomnik/gomem/internal/repositories/kv"
 	ucConsumePackage "github.com/pokatomnik/gomem/internal/use_cases/consume"
-	ucDumpPackage "github.com/pokatomnik/gomem/internal/use_cases/dump"
 	ucGetFactPackage "github.com/pokatomnik/gomem/internal/use_cases/getfact"
 	ucMCPHTTPPackage "github.com/pokatomnik/gomem/internal/use_cases/mcphttp"
 	ucMCPStdIOPackage "github.com/pokatomnik/gomem/internal/use_cases/mcpstdio"
@@ -63,19 +61,17 @@ func scaffold(ctx context.Context) (*cobra.Command, *rKVPackage.KV, error) {
 	aMCPStdIO := aMCPStdIOPackage.New(mcpDeps)
 
 	con := ucConsumePackage.New(aOllama, db, aInput)
-	dum := ucDumpPackage.New(db)
 	mcphttp := ucMCPHTTPPackage.New(aMCPHTTP)
 	mcpstdio := ucMCPStdIOPackage.New(aMCPStdIO)
 
 	remember := cmdRememberPackage.RememberCmd(rem)
 	recall := cmdRecallPackage.RecallCmd(rec)
 	getFact := cmdGetFactPackage.GetFactCmd(fac)
-	dump := cmdDumpPackage.DumpCmd(dum)
 	consume := cmdConsumePackage.Consume(con)
 	mcpStdIO := cmdMCPStdIOPackage.NewMCPStdIOController(mcpstdio)
 	mcpHTTP := cmdMCPHTTPPackage.NewMCPHTTPController(cfg, mcphttp)
 	mcp := cmdMCPPackage.NewMCPController(mcpStdIO, mcpHTTP)
-	root := cmdRootPackage.RootCmd(remember, recall, getFact, dump, consume, mcp)
+	root := cmdRootPackage.RootCmd(remember, recall, getFact, consume, mcp)
 
 	return root, db, nil
 }

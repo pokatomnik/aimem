@@ -14,7 +14,6 @@ no API keys.
 - `remember` — save a fact; it is summarized and embedded.
 - `recall` — find facts semantically similar to a question.
 - `fact` — print a fact by its ID.
-- `dump` — export all stored facts as JSON Lines.
 - `import` — bulk-import facts from JSON Lines read from stdin.
 
 ## Requirements
@@ -105,8 +104,6 @@ aimem recall "Where is the production database?"
 # Show a single fact by ID (IDs are printed by recall).
 aimem fact 4a44dc15364204a80fe80e9039455cc1...
 
-# Export all facts as JSON Lines.
-aimem dump > facts.jsonl
 
 # Import facts from JSON Lines (one JSON object per line).
 aimem import < facts.jsonl
@@ -119,14 +116,6 @@ Each input line must be a JSON object with a `data` field:
 ```json
 {"data":"The production database is hosted in Frankfurt"}
 {"data":"Deploys run on every weekday at 10:00 UTC"}
-```
-
-`dump` writes exactly this format, so it can be combined with `import` to create
-backups or move data between machines:
-
-```sh
-aimem dump > backup.jsonl
-aimem import < backup.jsonl
 ```
 
 Facts are identified by a SHA-256 hash of their content, so importing the same
