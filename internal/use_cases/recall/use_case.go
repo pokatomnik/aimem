@@ -14,11 +14,12 @@ type (
 	}
 
 	store interface {
-		GetFactsList(ctx context.Context, vector []float32, topK int) (facts []fact.FactListView, err error)
+		GetFactsList(ctx context.Context, vector []float32, topK int, similarityThreshold float32) (facts []fact.FactListView, err error)
 	}
 
 	config interface {
 		GetTopK() int
+		GetSimilarityThreshold() float32
 	}
 
 	Recall struct {
@@ -46,6 +47,7 @@ func (r *Recall) Recall(ctx context.Context, question string) ([]fact.FactListVi
 		ctx,
 		[]float32(embeddings[0]),
 		r.c.GetTopK(),
+		r.c.GetSimilarityThreshold(),
 	)
 	if err != nil {
 		return []fact.FactListView{}, err

@@ -17,6 +17,10 @@ type Config struct {
 	// How many results to get max
 	TopK int `toml:"topK"`
 
+	// The threshold beyond which a fact is considered relevant
+	// min: 0, max: 1
+	SimilarityThreshold float32 `toml:"similarityThreshold"`
+
 	// Embedding dimensions
 	Dimensions uint32 `toml:"dimensions"`
 
@@ -46,4 +50,8 @@ func (c *Config) GetTopK() int {
 
 func (c *Config) GetMCPHTTPHost() string {
 	return c.MCPHTTPHost
+}
+
+func (c *Config) GetSimilarityThreshold() float32 {
+	return max(0, min(1, c.SimilarityThreshold))
 }

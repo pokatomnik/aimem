@@ -6,12 +6,12 @@
 
 Code is layered, with dependencies pointing inward:
 
-- `cmd/aimem/` — entrypoint, `cobra` wiring (`scaffold.go`), config loading (`config.go`).
-- `internal/controllers/<command>/` — thin CLI layer; parses args and prints via `internal/shared/colors`.
+- `cmd/aimem/` — entrypoint, `cobra` wiring (`scaffold.go`), config loading (`config.go`, `init.go`) and the embedded `config.toml.example` (`example.go`).
+- `internal/controllers/<command>/` — thin CLI layer; parses args and prints via `internal/shared/colors`. Commands: `remember`, `recall`, `fact`, `remove`, `import`, `mcp {stdio,http}`.
 - `internal/use_cases/<command>/` — business logic; declares the narrow interfaces it consumes. Split by concern, e.g. `consume/{use_case,ai,unpack,fact}.go`.
 - `internal/entities/` — domain types (`fact`, `ollama`) and sentinel errors (`apperrors`).
-- `internal/repositories/kv/` — storage.
-- `internal/adapters/` — outbound integrations (`ollama`) and inbound input (`input`).
+- `internal/repositories/kv/` — storage; also writes `plain.jsonl`, an append-only log of additions.
+- `internal/adapters/` — outbound integrations (`ollama`) and inbound input (`input`), plus the servers (`servers/{mcp,stdio,http}`).
 - `internal/shared/` — cross-cutting helpers.
 
 Runtime data lives in `~/.aimem`; config is required at `~/.config/aimem/config.toml` (`config.toml.example` is the template).
@@ -22,14 +22,20 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
 
 ## Architectural Constraints
 
-- **Single fixed storage.** One local dataset, no namespaces or profiles. Config is file-only, with no flags or env overrides.
-- **Recall is semantic only**, returning summaries — no tags, filters, or keyword search.
+- **Single fixed storage.** One local dataset, no namespaces or profiles. Config is file-only, with no flags or env overrides. Unknown config keys are ignored silently — a typo leaves the field at its zero value, so keep `config.toml.example` in sync with `Config`.
+- **Recall is semantic only**, returning summaries — no tags, filters, or keyword search. `topK` is applied first, then results are filtered by `similarityThreshold`; xvec reports cosine as a distance (0 = identical), so the code converts it to a similarity before comparing.
 - **No cancellation or timeouts.** Requests run without a deadline, so a slow backend blocks the CLI.
 - **Import is sequential**, and the write orchestration is duplicated between `remember` and `import`.
+- **`plain.jsonl` is append-only.** Removing a fact does not rewrite it, by design.
 
-## MCP Server Instructions
+## Prompts and Documentation
 
-`internal/adapters/servers/mcp/INSTRUCTIONS.md` is embedded and sent to the model as the MCP server's usage instructions. Keep it aligned with the MCP server and tool implementation: whenever a code change affects the server's purpose, available tools, inputs, outputs, behavior, or usage triggers, update this file in the same change. Keep the instructions concise and focused on when and how the model should use the tools, not on documenting implementation details.
+Two files are embedded and sent to a model; both must describe behavior that actually exists:
+
+- `internal/adapters/servers/mcp/INSTRUCTIONS.md` — the MCP server's usage instructions, embedded in `servers/mcp/server.go`. Keep it aligned with the tools: whenever a change affects the server's purpose, tools, inputs, outputs, behavior, or usage triggers, update it in the same change. Keep it concise and focused on when and how the model should use the tools.
+- `internal/adapters/ollama/SUMMARIZATION_SYSTEM.md` — the summarization system prompt, embedded in `adapters/ollama/summarization.go`.
+
+Tool names and descriptions live in `servers/mcp/tools/*.go`; `server_test.go` asserts that names match `INSTRUCTIONS.md` and that every tool is described. New prompts may appear elsewhere — check for `go:embed` and embedded instruction text before assuming this list is complete.
 
 ## Build, Test, and Development Commands
 
@@ -51,7 +57,12 @@ make clean    # remove build/
 
 ## Testing Guidelines
 
-There are no tests yet. Place them beside the code as `<file>_test.go` (e.g. `internal/use_cases/remember/use_case_test.go`), target the unexported interfaces, and prefer fakes over network calls to Ollama. Run with `make test`.
+Tests live beside the code as `<file>_test.go` and target the unexported interfaces, preferring fakes over network calls to Ollama. Current coverage:
+
+- `internal/adapters/servers/mcp/server_test.go` — tool names, descriptions, and the key guidance in `INSTRUCTIONS.md`, driven through an in-memory MCP transport.
+- `internal/repositories/kv/getfacts_test.go` — the similarity threshold and `topK` using a real xvec collection in a temp directory.
+
+Run with `make test`. When you delete a phrase that a test asserts on, update the test in the same change.
 
 ## Commit & Pull Request Guidelines
 

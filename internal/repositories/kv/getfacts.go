@@ -9,7 +9,7 @@ import (
 	"github.com/pokatomnik/gomem/internal/entities/fact"
 )
 
-func (k *KV) GetFactsList(ctx context.Context, vector []float32, topK int) (facts []fact.FactListView, err error) {
+func (k *KV) GetFactsList(ctx context.Context, vector []float32, topK int, similarityThreshold float32) (facts []fact.FactListView, err error) {
 	collection, err := k.getCollection(ctx)
 	if err != nil {
 		return []fact.FactListView{}, err
@@ -30,6 +30,14 @@ func (k *KV) GetFactsList(ctx context.Context, vector []float32, topK int) (fact
 
 	facts = make([]fact.FactListView, 0, len(results))
 	for _, result := range results {
+		// xvec reports the cosine metric as a distance: 0 means identical, 1 means
+		// orthogonal. The config threshold is a similarity, so flip the direction
+		// before comparing, otherwise the closest facts get filtered out.
+		similarity := 1 - result.Score
+		if similarity < similarityThreshold {
+			continue
+		}
+
 		createdAt, ok := result.Fields[keyFieldCreatedAt].(string)
 		if !ok {
 			return nil, fmt.Errorf(

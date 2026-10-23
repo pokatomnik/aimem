@@ -49,7 +49,7 @@ Stored facts can be stale or wrong. If memory contradicts the code, say so rathe
 
 ## Recall returns relevance, not inventory
 
-There is no tool that lists everything, deliberately: the set is unbounded and dumping it floods the context. So a short or empty result **does not mean memory is empty** — it means nothing scored high enough for that query. Never present recall results as the complete picture; rephrase and search again if you suspect more.
+There is no tool that lists everything, deliberately: the set is unbounded and dumping it floods the context. `recall` returns the closest matches above a relevance threshold — at most a configured cap. So a short or empty result **does not mean memory is empty**: either nothing scored above the threshold, or the handful shown were simply the closest of many. Never present recall results as the complete picture; rephrase and search again if you suspect more.
 
 The `summary` field keeps `recall` cheap. It is a compressed pointer, not the record, and summarization drops details — follow it with `read_fact` when precision matters.
 
