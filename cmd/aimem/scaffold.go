@@ -20,6 +20,7 @@ import (
 	cmdMCPPackage "github.com/pokatomnik/gomem/internal/controllers/mcp"
 	cmdRecallPackage "github.com/pokatomnik/gomem/internal/controllers/recall"
 	cmdRememberPackage "github.com/pokatomnik/gomem/internal/controllers/remember"
+	cmdRemoveFactPackage "github.com/pokatomnik/gomem/internal/controllers/removefact"
 	cmdRootPackage "github.com/pokatomnik/gomem/internal/controllers/root"
 	cmdMCPStdIOPackage "github.com/pokatomnik/gomem/internal/controllers/stdio"
 	rKVPackage "github.com/pokatomnik/gomem/internal/repositories/kv"
@@ -29,6 +30,7 @@ import (
 	ucMCPStdIOPackage "github.com/pokatomnik/gomem/internal/use_cases/mcpstdio"
 	ucRecallPackage "github.com/pokatomnik/gomem/internal/use_cases/recall"
 	ucRememberPackage "github.com/pokatomnik/gomem/internal/use_cases/remember"
+	ucRemoveFactPackage "github.com/pokatomnik/gomem/internal/use_cases/removefact"
 )
 
 func scaffold(ctx context.Context) (*cobra.Command, *rKVPackage.KV, error) {
@@ -50,6 +52,7 @@ func scaffold(ctx context.Context) (*cobra.Command, *rKVPackage.KV, error) {
 	rec := ucRecallPackage.New(aOllama, db, cfg)
 	fac := ucGetFactPackage.New(db)
 	rem := ucRememberPackage.New(aOllama, db)
+	del := ucRemoveFactPackage.New(db)
 
 	mcpDeps := mcp.MCPDeps{
 		Remember: rem,
@@ -67,11 +70,12 @@ func scaffold(ctx context.Context) (*cobra.Command, *rKVPackage.KV, error) {
 	remember := cmdRememberPackage.RememberCmd(rem)
 	recall := cmdRecallPackage.RecallCmd(rec)
 	getFact := cmdGetFactPackage.GetFactCmd(fac)
+	removeFact := cmdRemoveFactPackage.RemoveFactCmd(del)
 	consume := cmdConsumePackage.Consume(con)
 	mcpStdIO := cmdMCPStdIOPackage.NewMCPStdIOController(mcpstdio)
 	mcpHTTP := cmdMCPHTTPPackage.NewMCPHTTPController(cfg, mcphttp)
 	mcp := cmdMCPPackage.NewMCPController(mcpStdIO, mcpHTTP)
-	root := cmdRootPackage.RootCmd(remember, recall, getFact, consume, mcp)
+	root := cmdRootPackage.RootCmd(remember, recall, getFact, removeFact, consume, mcp)
 
 	return root, db, nil
 }

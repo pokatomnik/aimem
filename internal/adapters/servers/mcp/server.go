@@ -12,9 +12,10 @@ import (
 var instructions string
 
 type MCPDeps struct {
-	Remember mcpdeps.Remember
-	Recall   mcpdeps.Recall
-	GetFact  mcpdeps.GetFact
+	Remember   mcpdeps.Remember
+	Recall     mcpdeps.Recall
+	GetFact    mcpdeps.GetFact
+	RemoveFact mcpdeps.RemoveFact
 }
 
 func CreateServer(deps MCPDeps) (*mcp.Server, error) {
@@ -45,9 +46,15 @@ func CreateServer(deps MCPDeps) (*mcp.Server, error) {
 		return nil, err
 	}
 
+	toolRemoveFact, removeFactHandler, err := tools.ToolRemoveFact(deps.RemoveFact)
+	if err != nil {
+		return nil, err
+	}
+
 	mcp.AddTool(server, &toolRemember, rememberHandler)
 	mcp.AddTool(server, &toolRecall, recallHandler)
 	mcp.AddTool(server, &toolGetFact, getFactHandler)
+	mcp.AddTool(server, &toolRemoveFact, removeFactHandler)
 
 	return server, nil
 }

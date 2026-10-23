@@ -18,4 +18,8 @@ type (
 	GetFact interface {
 		GetFact(ctx context.Context, id string) (fact.FactFullView, error)
 	}
+
+	RemoveFact interface {
+		RemoveFactByID(ctx context.Context, id string) error
+	}
 )
