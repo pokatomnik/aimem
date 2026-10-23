@@ -7,14 +7,20 @@ import (
 )
 
 func (k *KV) RemoveFactByID(ctx context.Context, id string) error {
-	result, err := k.collection.Delete(ctx, []string{id})
+	collection, err := k.getCollection(ctx)
+	if err != nil {
+		return err
+	}
+	defer collection.Close()
+
+	result, err := collection.Delete(ctx, []string{id})
 	if err != nil {
 		return err
 	}
 
 	for _, v := range result {
 		if v.Err != nil {
-			return err
+			return v.Err
 		}
 	}
 

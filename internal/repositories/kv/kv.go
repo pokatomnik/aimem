@@ -2,8 +2,6 @@ package kv
 
 import (
 	"context"
-	"os"
-	"path"
 
 	"github.com/gorse-io/xvec"
 )
@@ -14,20 +12,14 @@ type (
 	}
 
 	KV struct {
-		config     config
-		collection *xvec.Collection
-		dataPath   string
+		config config
+		// collection *xvec.Collection
+		dataPath string
+		schema   xvec.CollectionSchema
 	}
 )
 
-func Open(ctx context.Context, config config) (*KV, error) {
-	userHome, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-
-	dataPath := path.Join(userHome, ".aimem")
-
+func New(config config, dataPath string) *KV {
 	index := xvec.NewHNSWIndexParams(xvec.MetricTypeCosine)
 	schema := xvec.NewCollectionSchema(
 		"memory",
@@ -42,29 +34,26 @@ func Open(ctx context.Context, config config) (*KV, error) {
 		},
 	)
 
+	return &KV{
+		config:   config,
+		dataPath: dataPath,
+		schema:   schema,
+	}
+}
+
+func (kv *KV) getCollection(ctx context.Context) (*xvec.Collection, error) {
+
 	options := xvec.NewCollectionOptions()
 
-	collection, err := xvec.Open(ctx, dataPath, options)
+	collection, err := xvec.Open(ctx, kv.dataPath, options)
 	if err == nil {
-		return &KV{
-			config:     config,
-			collection: collection,
-			dataPath:   dataPath,
-		}, nil
+		return collection, nil
 	}
 
-	collection, err = xvec.CreateAndOpen(ctx, dataPath, schema, options)
+	collection, err = xvec.CreateAndOpen(ctx, kv.dataPath, kv.schema, options)
 	if err == nil {
-		return &KV{
-			config:     config,
-			collection: collection,
-			dataPath:   dataPath,
-		}, nil
+		return collection, nil
 	}
 
 	return nil, err
-}
-
-func (k *KV) Close() error {
-	return k.collection.Close()
 }

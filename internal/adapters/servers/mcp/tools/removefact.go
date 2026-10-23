@@ -23,7 +23,7 @@ func ToolRemoveFact(r mcpdeps.RemoveFact) (
 	error,
 ) {
 	tool := mcp.Tool{
-		Name:        "removeFactByID",
+		Name:        "remove_fact_by_id",
 		Description: "Remove previously remembered fact/knowledge by ID",
 	}
 

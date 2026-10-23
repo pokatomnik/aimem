@@ -25,7 +25,7 @@ func ToolGetFact(r mcpdeps.GetFact) (
 	error,
 ) {
 	tool := mcp.Tool{
-		Name:        "getFactByID",
+		Name:        "get_fact_by_id",
 		Description: "Get a fact/knowledge by ID",
 	}
 

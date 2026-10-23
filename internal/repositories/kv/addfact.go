@@ -21,7 +21,13 @@ func (k *KV) AddFact(ctx context.Context, vector []float32, summary, content str
 		return err
 	}
 
-	results, err := k.collection.Insert(ctx, []xvec.Document{document})
+	collection, err := k.getCollection(ctx)
+	if err != nil {
+		return err
+	}
+	defer collection.Close()
+
+	results, err := collection.Insert(ctx, []xvec.Document{document})
 	if errors.Is(err, xvec.ErrAlreadyExists) {
 		return apperrors.ErrAlreadyHasFact
 	}

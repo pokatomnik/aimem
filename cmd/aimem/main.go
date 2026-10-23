@@ -16,7 +16,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	root, db, err := scaffold(ctx)
+	root, err := scaffold()
 	if errors.Is(err, apperrors.ErrConfigNotInitialized) {
 		fmt.Fprintln(os.Stderr, config.Example())
 	}
@@ -24,7 +24,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
 
 	ctx, stop := signal.NotifyContext(
 		ctx,

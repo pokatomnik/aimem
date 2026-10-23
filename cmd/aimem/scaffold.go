@@ -1,9 +1,9 @@
 package main
 
 import (
-	"context"
 	"net/http"
 	"os"
+	"path"
 
 	"github.com/spf13/cobra"
 
@@ -33,18 +33,20 @@ import (
 	ucRemoveFactPackage "github.com/pokatomnik/gomem/internal/use_cases/removefact"
 )
 
-func scaffold(ctx context.Context) (*cobra.Command, *rKVPackage.KV, error) {
+func scaffold() (*cobra.Command, error) {
 	cfg, err := config.InitConfig()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	client := http.DefaultClient
 
-	db, err := rKVPackage.Open(ctx, cfg)
+	userHome, err := os.UserHomeDir()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
+
+	db := rKVPackage.New(cfg, path.Join(userHome, ".aimem"))
 
 	aOllama := aOllamaPackage.New(client, cfg)
 	aInput := aInputPackage.New(os.Stdin)
@@ -55,9 +57,10 @@ func scaffold(ctx context.Context) (*cobra.Command, *rKVPackage.KV, error) {
 	del := ucRemoveFactPackage.New(db)
 
 	mcpDeps := mcp.MCPDeps{
-		Remember: rem,
-		Recall:   rec,
-		GetFact:  fac,
+		Remember:   rem,
+		Recall:     rec,
+		GetFact:    fac,
+		RemoveFact: del,
 	}
 
 	aMCPHTTP := aMCPHTTPPackage.New(mcpDeps)
@@ -77,5 +80,5 @@ func scaffold(ctx context.Context) (*cobra.Command, *rKVPackage.KV, error) {
 	mcp := cmdMCPPackage.NewMCPController(mcpStdIO, mcpHTTP)
 	root := cmdRootPackage.RootCmd(remember, recall, getFact, removeFact, consume, mcp)
 
-	return root, db, nil
+	return root, nil
 }

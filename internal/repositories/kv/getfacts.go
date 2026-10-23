@@ -10,7 +10,13 @@ import (
 )
 
 func (k *KV) GetFactsList(ctx context.Context, vector []float32, topK int) (facts []fact.FactListView, err error) {
-	results, err := k.collection.Query(ctx, xvec.VectorQuery{
+	collection, err := k.getCollection(ctx)
+	if err != nil {
+		return []fact.FactListView{}, err
+	}
+	defer collection.Close()
+
+	results, err := collection.Query(ctx, xvec.VectorQuery{
 		Field:       keyFieldEmbedding,
 		DenseVector: xvec.VectorFP32(vector),
 		TopK:        topK,

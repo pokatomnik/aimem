@@ -10,7 +10,13 @@ import (
 )
 
 func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, error) {
-	result, err := k.collection.Fetch(
+	collection, err := k.getCollection(ctx)
+	if err != nil {
+		return fact.FactFullView{}, err
+	}
+	defer collection.Close()
+
+	result, err := collection.Fetch(
 		ctx,
 		[]string{id},
 		xvec.Projection{
