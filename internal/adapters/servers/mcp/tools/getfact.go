@@ -9,13 +9,13 @@ import (
 
 type (
 	getFactInput struct {
-		ID string `json:"id" jsonschema:"Fact/knowledge ID"`
+		ID string `json:"id" jsonschema:"ID of the fact to read, as returned by the recall tool"`
 	}
 	getFactOutput struct {
 		ID        string `json:"id" jsonschema:"Fact/knowledge ID"`
 		CreatedAt string `json:"createdAt" jsonschema:"When fact/knowledge was remembered"`
-		Summary   string `json:"summary" jsonschema:"Summary of the fact/knowledge"`
-		Fact      string `json:"fact" jsonschema:"Fact/knowledge contents"`
+		Summary   string `json:"summary" jsonschema:"Short summary, the same text the recall tool shows"`
+		Fact      string `json:"fact" jsonschema:"Full stored fact/knowledge contents"`
 	}
 )
 
@@ -25,8 +25,11 @@ func ToolGetFact(r mcpdeps.GetFact) (
 	error,
 ) {
 	tool := mcp.Tool{
-		Name:        "get_fact_by_id",
-		Description: "Get a fact/knowledge by ID",
+		Name: "read_fact",
+		Description: "Read one saved fact/knowledge in full by its ID. The recall tool returns only short " +
+			"summaries; call this with an ID from a recall result whenever the summary is not detailed enough " +
+			"to answer — exact wording, names, numbers, paths, or anything the summary may have dropped. " +
+			"The result contains the complete stored text plus the summary.",
 	}
 
 	var handler mcp.ToolHandlerFor[getFactInput, getFactOutput] = func(

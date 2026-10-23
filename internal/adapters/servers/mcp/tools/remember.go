@@ -22,8 +22,10 @@ func ToolRemember(r mcpdeps.Remember) (
 	error,
 ) {
 	tool := mcp.Tool{
-		Name:        "remember",
-		Description: "Remember a fact/knowledge",
+		Name: "remember",
+		Description: "Save a fact or piece of knowledge to persistent memory. The result is the short summary that " +
+			"the recall tool will later show, so write the fact as a complete self-contained statement. Save only what " +
+			"the user actually provided; this is not a transcript.",
 	}
 
 	var handler mcp.ToolHandlerFor[rememberInput, rememberOutput] = func(

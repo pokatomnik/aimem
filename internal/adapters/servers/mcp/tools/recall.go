@@ -14,7 +14,7 @@ type (
 	fact struct {
 		ID        string `json:"id" jsonschema:"Fact/knowledge ID"`
 		CreatedAt string `json:"createdAt" jsonschema:"Date when knowledge was created"`
-		Summary   string `json:"summary" jsonschema:"A short fact/knowledge summary. Read full knowledge using \"getFactByID\" tool"`
+		Summary   string `json:"summary" jsonschema:"A short summary, not the full text. Read the full fact with the read_fact tool"`
 	}
 	recallOutput struct {
 		Facts []fact `json:"facts" jsonschema:"Facts/knowledge we have"`
@@ -27,8 +27,12 @@ func ToolRecall(r mcpdeps.Recall) (
 	error,
 ) {
 	tool := mcp.Tool{
-		Name:        "recall",
-		Description: "Recall all related facts/knowledge",
+		Name: "recall",
+		Description: "Semantic search over saved facts/knowledge. Returns only the top-K most relevant matches, ranked " +
+			"by similarity, each with an ID, creation time, and a short summary — never the full text. Because it is a " +
+			"relevance search rather than a listing, an empty or short result does not mean nothing is stored, and it " +
+			"cannot enumerate everything that is remembered. When a summary is too short to answer from, call " +
+			"read_fact with that ID.",
 	}
 
 	var handler mcp.ToolHandlerFor[recallInput, recallOutput] = func(
