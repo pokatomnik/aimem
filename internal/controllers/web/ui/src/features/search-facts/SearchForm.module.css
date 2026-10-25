@@ -1,61 +1,104 @@
+.wrap {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+}
+
 .form {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-2);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-bg);
-  box-shadow: var(--shadow-sm);
-  transition:
-    border-color var(--transition),
-    box-shadow var(--transition);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    margin: 0;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-bg);
+    box-shadow: var(--shadow-sm);
+    transition:
+        border-color var(--transition),
+        box-shadow var(--transition);
 }
 
 .form:focus-within {
-  border-color: var(--color-accent);
-  box-shadow: var(--shadow-focus);
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
 }
 
 .hero {
-  min-height: 64px;
-  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
+    min-height: 64px;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
 }
 
 .compact {
-  min-height: 52px;
-  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
+    min-height: 52px;
+    padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
 }
 
+/* `type="search"` paints its own box and a cancel button in WebKit, which no
+   amount of `border: none` removes; both must be reset explicitly. */
 .input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text);
-  outline: none;
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
 }
 
 .input::placeholder {
-  color: var(--color-text-tertiary);
+    color: var(--color-text-tertiary);
+}
+
+.input::-webkit-search-decoration,
+.input::-webkit-search-cancel-button,
+.input::-webkit-search-results-button,
+.input::-webkit-search-results-decoration {
+    display: none;
+    -webkit-appearance: none;
 }
 
 .hero .input {
-  font-size: 1.0625rem;
+    font-size: 1.0625rem;
 }
 
 .compact .input {
-  font-size: 0.9375rem;
+    font-size: 0.9375rem;
+}
+
+.clear {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    color: var(--color-text-secondary);
+    font-size: 1.25rem;
+    line-height: 1;
+    transition:
+        color var(--transition),
+        background var(--transition);
+}
+
+.clear:hover {
+    color: var(--color-text);
+    background: var(--color-surface);
 }
 
 .submit {
-  flex-shrink: 0;
+    flex-shrink: 0;
 }
 
 .hint {
-  margin-top: var(--space-2);
-  padding-left: var(--space-4);
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
+    padding-left: var(--space-5);
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+}
+
+.compact + .hint {
+    padding-left: var(--space-4);
 }

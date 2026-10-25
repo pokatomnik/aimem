@@ -26,6 +26,10 @@ INSTALL_DIR ?= $(GOBIN)
 GO_BUILD_FLAGS := -trimpath -buildvcs=false
 GO_LDFLAGS     := -s -w -buildid=
 
+# node_modules may contain Go code of its own (flatted ships a Go port), which
+# is not ours to test. Expanded at recipe time, so dist/ exists by then.
+GO_PACKAGES = $$($(GO) list ./... | grep -v /node_modules)
+
 .PHONY: all build install test generate clean ui-install ui-build ui-test ui-lint ui-typecheck
 
 all: build
@@ -58,8 +62,8 @@ install: build
 	@mkdir -p $(INSTALL_DIR)
 	install -m 0755 $(BUILD_DIR)/$(BINARY) $(INSTALL_DIR)/$(BINARY)
 
-test:
-	CGO_ENABLED=0 $(GO) test ./...
+test: ui-build
+	CGO_ENABLED=0 $(GO) test $(GO_PACKAGES)
 
 # Regenerate code from //go:generate directives (currently ogen from OpenAPI).
 generate:

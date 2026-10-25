@@ -25,8 +25,9 @@ writes types to `src/api/generated/schema.d.ts`. The generated file is committed
 so building does not depend on the code generator.
 
 From the repository root: `make ui-build`, `make ui-test`, `make ui-lint`.
-`make build` builds the UI first, then the Go binary — the order matters for
-`go:embed`.
+`make build` and `make test` both depend on `ui-build` — the order matters, because
+`//go:embed all:ui/dist` in `../spa.go` does not compile until `dist/` exists. A bare
+`go build ./...` on a fresh clone therefore fails until the frontend is built once.
 
 ## Architecture
 
@@ -74,3 +75,16 @@ current host, because the SPA and the API are always served by the same binary.
   matters on the client.
 - `rehype-raw` is deliberately not installed: raw HTML in a fact stays escaped.
 - All UI copy is in English. There is no i18n layer.
+
+## Serving
+
+The Go side lives in the parent package, not here: `../spa.go` embeds `dist/`
+(`//go:embed all:ui/dist`) and serves it as-is: pathname maps
+to a file, `/` to `index.html`. Hashed assets under `assets/` get
+`max-age=31536000, immutable`, everything else `no-cache`. Only `GET` and `HEAD`
+are allowed; missing paths are 404 — `HashRouter` means the server never sees a
+client-side route, so there is no SPA fallback.
+
+`internal/controllers/web/handler.go` splits traffic: `/api/` goes to the
+`ogen` server, anything else to the SPA. Both run in one binary on one port, so
+the client always calls `/api/v1/…` relative to the current host.

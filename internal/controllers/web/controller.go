@@ -46,7 +46,7 @@ func (c *Controller) Run(
 	host := cmp.Or(c.cfg.GetWebHTTPHost(), defaultWebHost)
 
 	opts := ServerOptions()
-	handler, err := server.NewServer(&Methods{
+	api, err := server.NewServer(&Methods{
 		remember:   c.remember,
 		recall:     c.recall,
 		getFact:    c.getFact,
@@ -56,9 +56,14 @@ func (c *Controller) Run(
 		return err
 	}
 
+	spa, err := newSPAHandler()
+	if err != nil {
+		return err
+	}
+
 	ctxServer := httpServerExtPkg.NewHTTPServerExt(&http.Server{
 		Addr:    host,
-		Handler: handler,
+		Handler: newHandler(api, spa),
 		BaseContext: func(l net.Listener) context.Context {
 			return ctx
 		},
