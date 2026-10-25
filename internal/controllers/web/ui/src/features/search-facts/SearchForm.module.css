@@ -44,9 +44,15 @@
     border: none;
     background: transparent;
     color: var(--color-text);
-    outline: none;
     appearance: none;
     -webkit-appearance: none;
+}
+
+/* The global `:focus-visible` ring is the same specificity as `.input` and comes
+   later in the bundle, so it wins and draws a second rectangle inside the pill.
+   Focus is already shown by `.form:focus-within`, so the ring here is dropped. */
+.input:focus-visible {
+    outline: none;
 }
 
 .input::placeholder {

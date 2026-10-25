@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSearchPath, factPath, ROUTES } from "./paths";
+import {
+  buildSearchPath,
+  factPath,
+  isSameSearch,
+  readSearchQuery,
+  ROUTES,
+} from "./paths";
 
 describe("ROUTES", () => {
   it("describes the SPA contract", () => {
@@ -41,5 +47,53 @@ describe("factPath", () => {
 
   it("encodes unsafe id characters", () => {
     expect(factPath("a/b c")).toBe("/fact/a%2Fb%20c");
+  });
+});
+
+describe("readSearchQuery", () => {
+  it("decodes the plus-separated form the app generates", () => {
+    expect(readSearchQuery("?q=a+b")).toBe("a b");
+  });
+
+  it("reports an empty string when q is absent", () => {
+    expect(readSearchQuery("")).toBe("");
+    expect(readSearchQuery("?foo=bar")).toBe("");
+  });
+});
+
+describe("isSameSearch", () => {
+  const onSearchPage = (
+    query: string,
+  ): { pathname: string; search: string } => ({
+    pathname: ROUTES.search,
+    search: `?q=${encodeURIComponent(query).replace(/%20/g, "+")}`,
+  });
+
+  it("is true for the query the page is already showing", () => {
+    expect(isSameSearch(onSearchPage("coffee"), "coffee")).toBe(true);
+  });
+
+  it("ignores surrounding whitespace, so a stray space is not a new search", () => {
+    expect(isSameSearch(onSearchPage("coffee"), "  coffee  ")).toBe(true);
+  });
+
+  it("is false for a different query", () => {
+    expect(isSameSearch(onSearchPage("coffee"), "tea")).toBe(false);
+  });
+
+  // Coming from the landing page or the add-fact page always has to navigate.
+  it("is false on any other route", () => {
+    expect(isSameSearch({ pathname: ROUTES.home, search: "" }, "coffee")).toBe(
+      false,
+    );
+    expect(
+      isSameSearch({ pathname: ROUTES.factAdd, search: "?q=coffee" }, "coffee"),
+    ).toBe(false);
+  });
+
+  it("treats a missing q as the empty query", () => {
+    expect(isSameSearch({ pathname: ROUTES.search, search: "" }, "")).toBe(
+      true,
+    );
   });
 });

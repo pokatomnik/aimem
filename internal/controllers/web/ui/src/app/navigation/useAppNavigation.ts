@@ -1,6 +1,6 @@
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
-import { buildSearchPath, factPath, ROUTES } from "./paths";
+import { buildSearchPath, factPath, isSameSearch, ROUTES } from "./paths";
 
 /**
  * Every navigation the app is allowed to perform, in one place. Pages receive
@@ -27,6 +27,7 @@ export type AppNavigation = {
  */
 export const useAppNavigation = (): AppNavigation => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const goHome = (): void => {
     void navigate(ROUTES.home);
@@ -38,6 +39,13 @@ export const useAppNavigation = (): AppNavigation => {
       void navigate(ROUTES.factAdd);
     },
     goToSearch: (query) => {
+      // Submitting the query the page already shows must do nothing at all:
+      // pushing the identical URL would add a history entry, so Back would
+      // appear broken. The button stays enabled; only navigation is skipped.
+      if (isSameSearch(location, query)) {
+        return;
+      }
+
       void navigate(buildSearchPath(query));
     },
     goToFact: (id) => {
