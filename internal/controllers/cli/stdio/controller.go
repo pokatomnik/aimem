@@ -16,6 +16,7 @@ func NewMCPStdIOController(serverRunner serverRunner, cmds ...*cobra.Command) *c
 		Short:         "Run MCP on stdio",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Args:          cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return serverRunner.Run(cmd.Context())
 		},

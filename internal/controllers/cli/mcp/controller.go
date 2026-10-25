@@ -8,6 +8,7 @@ func NewMCPController(cmds ...*cobra.Command) *cobra.Command {
 		Short:         "Start MCP server",
 		SilenceUsage:  false,
 		SilenceErrors: false,
+		Args:          cobra.NoArgs,
 		Example:       "mcp stdio",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()

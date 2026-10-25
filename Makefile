@@ -20,7 +20,7 @@ INSTALL_DIR ?= $(GOBIN)
 GO_BUILD_FLAGS := -trimpath -buildvcs=false
 GO_LDFLAGS     := -s -w -buildid=
 
-.PHONY: all build install test clean
+.PHONY: all build install test generate clean
 
 all: build
 
@@ -34,6 +34,10 @@ install: build
 
 test:
 	CGO_ENABLED=0 $(GO) test ./...
+
+# Regenerate code from //go:generate directives (currently ogen from OpenAPI).
+generate:
+	$(GO) generate ./...
 
 clean:
 	rm -rf $(BUILD_DIR)

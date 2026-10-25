@@ -1,6 +1,6 @@
 ---
 name: prompt-docs-keeper
-description: Audit aimem's prompts and documentation against the real code, report bugs before touching any wording, and then update INSTRUCTIONS.md, SUMMARIZATION_SYSTEM.md, AGENTS.md and README.md. Use when prompts, tool descriptions, docs, or config docs need updating, or when asked to check that texts still match the code.
+description: Audit aimem's prompts and documentation against the real code, report bugs before touching any wording, and then update INSTRUCTIONS.md, SUMMARIZATION_SYSTEM.md, AGENTS.md and README.md. Records every user correction in LESSONS.md so the same mistake is not repeated. Use when prompts, tool descriptions, docs, or config docs need updating, or when asked to check that texts still match the code.
 ---
 
 # Prompt & Docs Keeper
@@ -9,27 +9,44 @@ Keep prompts and docs true to the code in `aimem`. The text is never updated on 
 
 The user writes the code by hand. Your job is to audit and to phrase things, not to change logic.
 
+## Read LESSONS.md first
+
+[`LESSONS.md`](./LESSONS.md) in this skill's directory
+(`.agents/skills/prompt-docs-keeper/LESSONS.md`) holds corrections the user has
+already made — both to findings you reported and to text you wrote. Read it
+before proposing any change.
+
+- If a lesson applies, follow it and say which one you followed.
+- If the code contradicts a lesson, stop and report the conflict. Do not pick a
+  side on your own — a lesson records a decision the user already made once.
+- Never skip this because "the case looks simple". A lesson exists precisely
+  because that case once looked simple and was still handled wrong.
+
 ## Order of work
 
-1. **Collect facts from the code**, not from the docs.
-2. **Report findings** — bugs first, then stale text.
-3. **Stop on bugs.** Wait for the user to fix them.
-4. **Update texts** only for behavior that actually works.
-5. **Update AGENTS.md** if structure, commands, or constraints changed.
-6. **Run checks** — `go vet ./...`, `gofmt -l .`, `go test ./...`.
+1. **Read `LESSONS.md`.**
+2. **Collect facts from the code**, not from the docs.
+3. **Report findings** — bugs first, then stale text.
+4. **Stop on bugs.** Wait for the user to fix them.
+5. **Update texts** only for behavior that actually works.
+6. **Update AGENTS.md** if structure, commands, or constraints changed.
+7. **Run checks** — `go vet ./...`, `gofmt -l .`, `go test ./...`.
+8. **If the user corrects you**, apply the fix and append a lesson to
+   `LESSONS.md` in the same turn.
 
-Never do steps 4–5 in the same turn as reporting a bug you have not had confirmed.
+Never do steps 5–6 in the same turn as reporting a bug you have not had confirmed.
+Never finish a turn in which the user corrected you without step 8.
 
 ## Where the prompts live
 
 Text that reaches a model, and must stay in sync with code:
 
-| File | Embedded in | Sent to | Keep in sync with |
-|---|---|---|---|
-| `internal/adapters/servers/mcp/INSTRUCTIONS.md` | `internal/adapters/servers/mcp/server.go` (`//go:embed`) | the MCP client, as server instructions | tool names, inputs, outputs, and behavior in `internal/adapters/servers/mcp/tools/*.go` |
-| `internal/adapters/ollama/SUMMARIZATION_SYSTEM.md` | `internal/adapters/ollama/summarization.go` | the summarization model | the prompt built in `Summarize(...)`, `NumPredict`, what `remember`/`import` store |
-| Tool descriptions and `jsonschema` tags | each `tools/*.go` file | the model, via `tools/list` | the handler's actual inputs and outputs |
-| `cmd/aimem/config/config.toml.example` | `cmd/aimem/config/example.go` (`//go:embed`) | the user, on setup | `cmd/aimem/config/config.go` field names and defaults |
+| File                                               | Embedded in                                              | Sent to                                | Keep in sync with                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------- |
+| `internal/adapters/servers/mcp/INSTRUCTIONS.md`    | `internal/adapters/servers/mcp/server.go` (`//go:embed`) | the MCP client, as server instructions | tool names, inputs, outputs, and behavior in `internal/adapters/servers/mcp/tools/*.go` |
+| `internal/adapters/ollama/SUMMARIZATION_SYSTEM.md` | `internal/adapters/ollama/summarization.go`              | the summarization model                | the prompt built in `Summarize(...)`, `NumPredict`, what `remember`/`import` store      |
+| Tool descriptions and `jsonschema` tags            | each `tools/*.go` file                                   | the model, via `tools/list`            | the handler's actual inputs and outputs                                                 |
+| `cmd/aimem/config/config.toml.example`             | `cmd/aimem/config/example.go` (`//go:embed`)             | the user, on setup                     | `cmd/aimem/config/config.go` field names and defaults                                   |
 
 `AGENTS.md` and `README.md` do not reach a model, but must match the code and the CLI.
 
@@ -101,6 +118,56 @@ Check these before trusting any sentence in the docs. Each one has already been 
 - It is user-facing: installation, configuration, commands. Every command it lists must exist; every config key must be real.
 - Keep prose tight; the existing style is one sentence per idea.
 
+## Learning from corrections
+
+This is the part that makes the skill improve. It runs only when the **user**
+tells you that a finding or an edit of yours was wrong — not when the code
+merely looks suspicious to you.
+
+The trigger, in this skill's terms: you audited something, reported it as a bug
+or a stale sentence, and changed text — and then the user said you misread the
+code or did the wrong thing. That decision is now knowledge. Write it down.
+
+What becomes a lesson, and what does not:
+
+| Situation                                                                      | Lesson?                                              |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| You called something a bug; the user said the code is right as it is           | yes — record the correct reading of the code         |
+| You rewrote a prompt or doc; the user said the wording is wrong or too verbose | yes — record the accepted wording rule               |
+| You updated docs to match code the user then called broken                     | yes — record that the code was the bug, not the text |
+| You reported a judgment call; the user rejected it                             | yes — record the decision                            |
+| You noticed something odd but the user never commented on it                   | no                                                   |
+| You think a rule "would be nicer"                                              | no                                                   |
+
+When the user corrects you, do all three:
+
+1. Fix what you got wrong — the text, the finding, or both.
+2. Append an entry to [`LESSONS.md`](./LESSONS.md) — never rewrite or delete an
+   existing one.
+3. Keep the entry short enough to be read on every future run.
+
+An entry must contain, in this order:
+
+- **What I did** — the concrete finding or doc edit, with file and line.
+- **What the user said** — the correction in their words, not your summary.
+- **Why it was wrong** — the mechanism: which code path you misread, or why the
+  wording misleads the model reading it. "I documented a limit the code does not
+  enforce" is usable; "the text was inaccurate" is not.
+- **Rule** — what to do instead, phrased so it can be checked.
+- **Check** — the grep, probe, or command that proves the rule holds.
+
+If a new lesson contradicts an older one, add the new entry and mark the old one
+`(superseded by #N)`. History stays visible; that is how a future run knows the
+decision reversed and why.
+
+A lesson may also correct the audit itself — a claim in "Audit the code first"
+that turned out to be wrong. In that case fix the section **and** record the
+lesson, so the reasoning survives the edit.
+
+Never write a lesson the user did not actually correct. Speculation belongs in
+your reply, not in `LESSONS.md`; a false lesson is worse than no lesson, because
+later runs will follow it.
+
 ## Reporting
 
 When reporting, separate clearly:
@@ -118,3 +185,7 @@ gofmt -l . && go vet ./... && CGO_ENABLED=0 go test ./...
 ```
 
 `server_test.go` asserts tool names, that each tool is described, and that key guidance in `INSTRUCTIONS.md` survives edits. When you delete a phrase, update the test in the same change.
+
+If a check fails because of a lesson you were following, say so instead of
+silently bending the lesson — the user decides which one wins, and that decision
+goes into `LESSONS.md` as a new entry.

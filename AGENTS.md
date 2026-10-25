@@ -6,8 +6,9 @@
 
 Code is layered, with dependencies pointing inward:
 
-- `cmd/aimem/` — entrypoint, `cobra` wiring (`scaffold.go`), config loading (`config.go`, `init.go`) and the embedded `config.toml.example` (`example.go`).
-- `internal/controllers/<command>/` — thin CLI layer; parses args and prints via `internal/shared/colors`. Commands: `remember`, `recall`, `fact`, `remove`, `import`, `mcp {stdio,http}`.
+- `cmd/aimem/` — entrypoint, `cobra` wiring (`scaffold.go`) and the embedded `config.toml.example` (`config/example.go`); config loading lives in `cmd/aimem/config/` (`config.go`, `init.go`).
+- `internal/controllers/cli/<command>/` — thin CLI layer; parses args and prints via `internal/shared/colors`. Commands: `remember`, `recall`, `fact`, `remove`, `import`, `mcp {stdio,http}`, `web`.
+- `internal/controllers/web/` — the `web` command's HTTP API: `openapi.yaml` is the contract, `server/` is generated from it by `ogen` (`make generate`), and `methods.go` plus `error_handler.go` hold the hand-written side.
 - `internal/use_cases/<command>/` — business logic; declares the narrow interfaces it consumes. Split by concern, e.g. `consume/{use_case,ai,unpack,fact}.go`.
 - `internal/entities/` — domain types (`fact`, `ollama`) and sentinel errors (`apperrors`).
 - `internal/repositories/kv/` — storage; also writes `plain.jsonl`, an append-only log of additions.
@@ -18,13 +19,13 @@ Runtime data lives in `~/.aimem`; config is required at `~/.config/aimem/config.
 
 ## Architecture Overview
 
-Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `use_cases` (logic) → `entities` (domain types and sentinel errors). Repositories and adapters sit at the edge; use cases reach them only through unexported interfaces they declare, satisfied structurally. `scaffold` is the single composition root — a new command means two new packages and one wiring edit. Controllers are stateless functions; use cases are structs built by `New(...)`.
+Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `use_cases` (logic) → `entities` (domain types and sentinel errors). Repositories and adapters sit at the edge; use cases reach them only through unexported interfaces they declare, satisfied structurally. `scaffold` is the single composition root — a new command means two new packages and one wiring edit. Most controllers are stateless functions; the `web` controller is a struct built by `New(...)` because it carries its dependencies and config.
 
 ## Architectural Constraints
 
 - **Single fixed storage.** One local dataset, no namespaces or profiles. Config is file-only, with no flags or env overrides. Unknown config keys are ignored silently — a typo leaves the field at its zero value, so keep `config.toml.example` in sync with `Config`.
 - **Recall is semantic only**, returning summaries — no tags, filters, or keyword search. `topK` is applied first, then results are filtered by `similarityThreshold`; xvec reports cosine as a distance (0 = identical), so the code converts it to a similarity before comparing.
-- **No cancellation or timeouts.** Requests run without a deadline, so a slow backend blocks the CLI.
+- **No timeouts.** Requests run without a deadline, so a slow backend blocks the CLI. Cancellation exists only through signals: `main` wraps `context.Background()` in `signal.NotifyContext` (SIGINT/SIGTERM/SIGQUIT) and prints `Cancelled` when the context is canceled.
 - **Import is sequential**, and the write orchestration is duplicated between `remember` and `import`.
 - **`plain.jsonl` is append-only.** Removing a fact does not rewrite it, by design.
 
@@ -43,6 +44,7 @@ Tool names and descriptions live in `servers/mcp/tools/*.go`; `server_test.go` a
 make build    # CGO_ENABLED=0 build to build/aimem, stripped
 make install  # build and copy to GOBIN (override: INSTALL_DIR=...)
 make test     # CGO_ENABLED=0 go test ./...
+make generate # regenerate the ogen code in internal/controllers/web/server
 make clean    # remove build/
 ```
 
@@ -57,10 +59,24 @@ make clean    # remove build/
 
 ## Testing Guidelines
 
-Tests live beside the code as `<file>_test.go` and target the unexported interfaces, preferring fakes over network calls to Ollama. Current coverage:
+Tests live beside the code as `<file>_test.go` and target the unexported interfaces.
 
-- `internal/adapters/servers/mcp/server_test.go` — tool names, descriptions, and the key guidance in `INSTRUCTIONS.md`, driven through an in-memory MCP transport.
-- `internal/repositories/kv/getfacts_test.go` — the similarity threshold and `topK` using a real xvec collection in a temp directory.
+Tests are hermetic. Assume the test runner has no permissions at all: no writable directory, no network, no configured environment. A test that needs any of that is a broken test, not a slow one. So no I/O from test code:
+
+- **No environment** — no `os.Getenv`, `os.Setenv`, `os.Environ`, `t.Setenv`, and nothing that reads config from the environment. Configuration arrives as a fake satisfying the `GetX()` interface.
+- **No network** — no live Ollama, no `http.Get`, no `net.Dial`, no `net.Listen`, and no `httptest.NewServer` (it binds a loopback socket). In-memory transports and `httptest.NewRecorder` are fine.
+- **No filesystem** — no `t.TempDir()`, no `os.ReadFile`/`os.WriteFile`/`os.OpenFile`, no fixtures or golden files on disk. Use in-memory equivalents (`fstest.MapFS`, buffers, plain structs).
+
+The single exception is `go:embed`: embedded data is resolved by the compiler and baked into the binary, so a test may read it — that is compiler work, not test logic, and it touches no disk at run time. `server_test.go` reading `INSTRUCTIONS.md` is the sanctioned example.
+
+When a test would seem to require any of the above, **write the mock or stub first** — in the same change, before the test — and inject it. If the code under test reaches for the OS or a real backend directly, extract the seam first: declare a narrow unexported interface next to its consumer (the way `type ai interface` does) and satisfy it with a fake.
+
+Do not test library behavior. A test that drives xvec (or any dependency) to check that the dependency works is testing upstream code that is already tested upstream, and it drags in the I/O the rules above forbid. Assert on this project's logic only; for `GetFactsList` that means the `1 - result.Score` inversion, the threshold filter, `topK` as an upper bound, and the conversion errors — fed from a fake collection, not a real one.
+
+Current coverage:
+
+- `internal/adapters/servers/mcp/server_test.go` — tool names, descriptions, and the key guidance in `INSTRUCTIONS.md`, driven through an in-memory MCP transport. Reads the embedded text only; complies with the rules above.
+- `internal/repositories/kv/getfacts_test.go` — **no tests**: the file is a `TODO` explaining that `GetFactsList` is uncovered and must be tested through a faked collection rather than a real xvec one. See the note above.
 
 Run with `make test`. When you delete a phrase that a test asserts on, update the test in the same change.
 

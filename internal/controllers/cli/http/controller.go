@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const defaultHTTPAddress = "127.0.0.1:8080"
+const defaultHTTPAddress = "127.0.0.1:7777"
 
 type (
 	Config interface {
@@ -24,7 +24,8 @@ func NewMCPHTTPController(config Config, serverRunner serverRunner, cmds ...*cob
 		Short:         "Run MCP on HTTP",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Example:       "cql mcp http",
+		Args:          cobra.NoArgs,
+		Example:       "aimem mcp http",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := cmp.Or(config.GetMCPHTTPHost(), defaultHTTPAddress)
 			return serverRunner.Run(cmd.Context(), host)

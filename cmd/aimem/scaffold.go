@@ -14,15 +14,17 @@ import (
 	aOllamaPackage "github.com/pokatomnik/gomem/internal/adapters/ollama"
 	aMCPHTTPPackage "github.com/pokatomnik/gomem/internal/adapters/servers/http"
 	aMCPStdIOPackage "github.com/pokatomnik/gomem/internal/adapters/servers/stdio"
-	cmdConsumePackage "github.com/pokatomnik/gomem/internal/controllers/consume"
-	cmdGetFactPackage "github.com/pokatomnik/gomem/internal/controllers/getfact"
-	cmdMCPHTTPPackage "github.com/pokatomnik/gomem/internal/controllers/http"
-	cmdMCPPackage "github.com/pokatomnik/gomem/internal/controllers/mcp"
-	cmdRecallPackage "github.com/pokatomnik/gomem/internal/controllers/recall"
-	cmdRememberPackage "github.com/pokatomnik/gomem/internal/controllers/remember"
-	cmdRemoveFactPackage "github.com/pokatomnik/gomem/internal/controllers/removefact"
-	cmdRootPackage "github.com/pokatomnik/gomem/internal/controllers/root"
-	cmdMCPStdIOPackage "github.com/pokatomnik/gomem/internal/controllers/stdio"
+	cmdConsumePackage "github.com/pokatomnik/gomem/internal/controllers/cli/consume"
+	cmdGetFactPackage "github.com/pokatomnik/gomem/internal/controllers/cli/getfact"
+	cmdMCPHTTPPackage "github.com/pokatomnik/gomem/internal/controllers/cli/http"
+	cmdMCPPackage "github.com/pokatomnik/gomem/internal/controllers/cli/mcp"
+	cmdRecallPackage "github.com/pokatomnik/gomem/internal/controllers/cli/recall"
+	cmdRememberPackage "github.com/pokatomnik/gomem/internal/controllers/cli/remember"
+	cmdRemoveFactPackage "github.com/pokatomnik/gomem/internal/controllers/cli/removefact"
+	cmdRootPackage "github.com/pokatomnik/gomem/internal/controllers/cli/root"
+	cmdMCPStdIOPackage "github.com/pokatomnik/gomem/internal/controllers/cli/stdio"
+	cmdWebCLIPackage "github.com/pokatomnik/gomem/internal/controllers/cli/web"
+	cmdWebPackage "github.com/pokatomnik/gomem/internal/controllers/web"
 	rKVPackage "github.com/pokatomnik/gomem/internal/repositories/kv"
 	ucConsumePackage "github.com/pokatomnik/gomem/internal/use_cases/consume"
 	ucGetFactPackage "github.com/pokatomnik/gomem/internal/use_cases/getfact"
@@ -74,11 +76,18 @@ func scaffold() (*cobra.Command, error) {
 	recall := cmdRecallPackage.RecallCmd(rec)
 	getFact := cmdGetFactPackage.GetFactCmd(fac)
 	removeFact := cmdRemoveFactPackage.RemoveFactCmd(del)
+
+	webController := cmdWebPackage.New(cfg, rem, rec, fac)
+
 	consume := cmdConsumePackage.Consume(con)
+
 	mcpStdIO := cmdMCPStdIOPackage.NewMCPStdIOController(mcpstdio)
 	mcpHTTP := cmdMCPHTTPPackage.NewMCPHTTPController(cfg, mcphttp)
 	mcp := cmdMCPPackage.NewMCPController(mcpStdIO, mcpHTTP)
-	root := cmdRootPackage.RootCmd(remember, recall, getFact, removeFact, consume, mcp)
+
+	web := cmdWebCLIPackage.NewWebController(webController)
+
+	root := cmdRootPackage.RootCmd(remember, recall, getFact, removeFact, consume, mcp, web)
 
 	return root, nil
 }

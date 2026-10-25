@@ -17,6 +17,7 @@ no API keys.
 - `remove` — delete a fact by its ID.
 - `import` — bulk-import facts from JSON Lines read from stdin.
 - `mcp` — run the MCP server over `stdio` or `http` for use by AI assistants.
+- `web` — serve the same memory over a small HTTP API.
 
 ## Requirements
 
@@ -57,12 +58,16 @@ Make sure the install directory is in your `PATH`.
 ### 2. Create the configuration
 
 The configuration file is required and must be located at
-`~/.config/aimem/config.toml`:
+`~/.config/aimem/config.toml`. The template lives in the repository at
+`cmd/aimem/config/config.toml.example`:
 
 ```sh
 mkdir -p ~/.config/aimem
-cp config.toml.example ~/.config/aimem/config.toml
+cp cmd/aimem/config/config.toml.example ~/.config/aimem/config.toml
 ```
+
+If the file is missing, `aimem` prints the template and the expected path to
+stderr before it exits.
 
 Then adjust it:
 
@@ -88,7 +93,10 @@ similarityThreshold = 0.5
 dimensions = 768
 
 # Host the MCP HTTP transport listens on
-mcpHttpHost = "127.0.0.1:8090"
+mcpHttpHost = "127.0.0.1:7777"
+
+# Host the web API listens on
+webHttpHost = "127.0.0.1:8888"
 ```
 
 | Key                   | Description                                                                                                                                  |
@@ -99,7 +107,8 @@ mcpHttpHost = "127.0.0.1:8090"
 | `topK`                | Upper bound on the number of results returned by `recall`.                                                                                   |
 | `similarityThreshold` | Minimum cosine similarity for a fact to be returned; `0` matches everything, `1` requires an exact match. Values outside `0..1` are clamped. |
 | `dimensions`          | Vector size; it is fixed in the database schema when it is created.                                                                          |
-| `mcpHttpHost`         | Address for the MCP HTTP transport. Defaults to `127.0.0.1:8080`.                                                                            |
+| `mcpHttpHost`         | Address for the MCP HTTP transport. Defaults to `127.0.0.1:7777`.                                                                            |
+| `webHttpHost`         | Address for the `web` HTTP API. Defaults to `127.0.0.1:8888`.                                                                                |
 
 > `recall` applies `topK` first and then filters by `similarityThreshold`, so a
 > query can return fewer than `topK` results, or none at all, even when related
@@ -135,7 +144,7 @@ aimem import < facts.jsonl
 # stdio, for editors that spawn the server themselves
 aimem mcp stdio
 
-# HTTP, listening on mcpHttpHost (127.0.0.1:8080 by default)
+# HTTP, listening on mcpHttpHost (127.0.0.1:7777 by default)
 aimem mcp http
 ```
 
@@ -143,6 +152,29 @@ The server exposes `remember`, `recall`, `read_fact`, and `remove_fact_by_id`. I
 usage instructions are embedded from
 `internal/adapters/servers/mcp/INSTRUCTIONS.md` and sent to the client on
 initialization.
+
+### Web API
+
+`aimem web` exposes the same memory over HTTP, listening on `webHttpHost`
+(`127.0.0.1:8888` by default):
+
+```sh
+aimem web
+```
+
+| Method | Path                    | Body                       | Returns                       |
+| ------ | ----------------------- | -------------------------- | ----------------------------- |
+| `POST` | `/api/v1/fact`          | `{"value":{"fact":"..."}}` | `{"summary":"..."}`           |
+| `GET`  | `/api/v1/fact/{factID}` | —                          | `{"value":{...full fact...}}` |
+| `POST` | `/api/v1/search`        | `{"query":"..."}`          | `{"value":{"found":[...]}}`   |
+
+`search` runs the same semantic lookup as `recall`, so `topK` and
+`similarityThreshold` apply and each item carries `id`, `createdAt`, and
+`summary` — never the full text; use `GET /api/v1/fact/{factID}` for that.
+Errors come back as `{"error":"<CODE>","message":"..."}`; the status is part of
+the mapping: `400` for a malformed request, `404` for an unknown route or a
+missing fact, `409` when the fact already exists, `422` when Ollama returns no
+usable embedding, `502` when Ollama itself fails, and `500` for anything else.
 
 ### Import format
 
@@ -171,9 +203,10 @@ from scratch.
 ## Development
 
 ```sh
-make build   # build build/aimem for the current platform
-make test    # run go test ./...
-make clean   # remove the build directory
+make build    # build build/aimem for the current platform
+make test     # run go test ./...
+make generate # regenerate the ogen code in internal/controllers/web/server
+make clean    # remove the build directory
 ```
 
 Run `aimem` without arguments (or with `--help`) to list the available

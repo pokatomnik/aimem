@@ -15,4 +15,7 @@ similarityThreshold = 0.5
 dimensions = 768
 
 # MCP HTTP transport host
-mcpHttpHost = "127.0.0.1:8090"
+mcpHttpHost = "127.0.0.1:7777"
+
+# Web HTTP host
+webHttpHost = "127.0.0.1:8888"

@@ -5,7 +5,7 @@ import (
 )
 
 type Config struct {
-	// e.g. http://127.0.0.1:11434
+	// e.g. 127.0.0.1:11434
 	OllamaHost string `toml:"ollamaHost"`
 
 	// e.g. "nomic-embed-text:latest"
@@ -24,8 +24,11 @@ type Config struct {
 	// Embedding dimensions
 	Dimensions uint32 `toml:"dimensions"`
 
-	// e.g. http://127.0.0.1:8080
+	// e.g. 127.0.0.1:7777
 	MCPHTTPHost string `toml:"mcpHttpHost"`
+
+	// e.g. 127.0.0.1:8888
+	WebHTTPHost string `toml:"webHttpHost"`
 }
 
 func (c *Config) GetDimensions() uint32 {
@@ -50,6 +53,10 @@ func (c *Config) GetTopK() int {
 
 func (c *Config) GetMCPHTTPHost() string {
 	return c.MCPHTTPHost
+}
+
+func (c *Config) GetWebHTTPHost() string {
+	return c.WebHTTPHost
 }
 
 func (c *Config) GetSimilarityThreshold() float32 {

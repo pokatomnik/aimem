@@ -1,0 +1,236 @@
+openapi: 3.0.4
+info:
+  version: 0.1.0
+  title: Swagger AIMem - OpenAPI 3.0
+  description: AI mem http contracts
+  contact:
+    email: hugefast@gmail.com
+servers:
+  - url: http://127.0.0.1:8888/
+tags:
+  - name: mem-api
+    description: Memory management API
+paths:
+  /api/v1/fact:
+    post:
+      tags:
+        - mem-api
+      summary: Remember a fact
+      description: Remember a fact
+      operationId: addFact
+      requestBody:
+        required: true
+        description: Fact parameters
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - value
+              properties:
+                value:
+                  $ref: "#/components/schemas/addFactParams"
+      responses:
+        "200":
+          description: Fact added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/factAddedOK"
+        "400":
+          description: Cannot add this fact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/appError"
+        default:
+          description: Failed to add a fact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/appError"
+  /api/v1/fact/{factID}:
+    get:
+      tags:
+        - mem-api
+      summary: Get fact contents by ID
+      description: Get fact contents by ID
+      operationId: getFactByID
+      parameters:
+        - name: factID
+          in: path
+          description: ID of a fact
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Fact contents
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - value
+                properties:
+                  value:
+                    $ref: "#/components/schemas/fact"
+        "404":
+          description: Fact not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/appError"
+        default:
+          description: Failed to get fact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/appError"
+  /api/v1/search:
+    post:
+      tags:
+        - mem-api
+      summary: Make a search by meaning
+      description: Make a search by meaning
+      operationId: search
+      requestBody:
+        description: searchParameters
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/searchRequestBody"
+        required: true
+      responses:
+        "200":
+          description: Successful search
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - value
+                properties:
+                  value:
+                    $ref: "#/components/schemas/searchResult"
+        default:
+          description: Search failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/appError"
+
+components:
+  schemas:
+    addFactParams:
+      type: object
+      additionalProperties: false
+      required:
+        - fact
+      properties:
+        fact:
+          type: string
+          description: Fact to remember
+          example: I love AI
+    factAddedOK:
+      type: object
+      additionalProperties: false
+      required:
+        - summary
+      properties:
+        summary:
+          type: string
+          description: fact summary
+          example: A nice summary of the fact
+    fact:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - createdAt
+        - summary
+        - content
+      properties:
+        id:
+          type: string
+          description: Fact ID
+          example: 2aad5d5f-acc2-4b80-baff-9ab859a51f18
+        createdAt:
+          type: string
+          description: Fact created date
+          format: date-time
+          example: 2026-10-24T16:17:17.320Z
+        summary:
+          type: string
+          description: A short summary/title about the fact
+          example: A nice summary of the fact
+        content:
+          type: string
+          description: Contents of the fact
+          example: I love AI
+    searchRequestBody:
+      type: object
+      additionalProperties: false
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          example: what do I like?
+          minLength: 3
+    searchResult:
+      type: object
+      additionalProperties: false
+      required:
+        - found
+      properties:
+        found:
+          type: array
+          items:
+            $ref: "#/components/schemas/searchResultItem"
+    searchResultItem:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - createdAt
+        - summary
+      properties:
+        id:
+          type: string
+          example: 2aad5d5f-acc2-4b80-baff-9ab859a51f18
+        createdAt:
+          type: string
+          example: 2026-10-24T16:17:17.320Z
+          format: date-time
+        summary:
+          example: A nice summary of the fact
+          type: string
+    appError:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+      properties:
+        error:
+          $ref: "#/components/schemas/errorCode"
+        message:
+          type: string
+          example: "Search error"
+    errorCode:
+      type: string
+      example: DB_CONVERT_ERROR
+      enum:
+        - DB_CONVERT_ERROR
+        - ALREADY_HAS_FACT
+        - CANNOT_GET_MODELS
+        - GET_EMBEDDINGS
+        - SUMMARIZE
+        - EMBEDDINGS_QUANTITY_NOT_EQUAL_TO_FACTS_QUANTITY
+        - EMPTY_EMBEDDINGS
+        - FACT_DOES_NOT_EXIST
+        - BAD_REQUEST
+        - INTERNAL_ERROR
+        - NOT_FOUND
