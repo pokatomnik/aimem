@@ -14,10 +14,11 @@ import (
 //go:generate go run github.com/ogen-go/ogen/cmd/ogen@v1.24.0 --target server -package server --clean openapi.yaml
 
 type Controller struct {
-	cfg      Config
-	remember Remember
-	recall   Recall
-	getFact  GetFact
+	cfg        Config
+	remember   Remember
+	recall     Recall
+	getFact    GetFact
+	removeFact RemoveFact
 }
 
 const defaultWebHost = "127.0.0.1:8888"
@@ -27,12 +28,14 @@ func New(
 	remember Remember,
 	recall Recall,
 	getFact GetFact,
+	removeFact RemoveFact,
 ) *Controller {
 	return &Controller{
-		cfg:      cfg,
-		remember: remember,
-		recall:   recall,
-		getFact:  getFact,
+		cfg:        cfg,
+		remember:   remember,
+		recall:     recall,
+		getFact:    getFact,
+		removeFact: removeFact,
 	}
 }
 
@@ -44,9 +47,10 @@ func (c *Controller) Run(
 
 	opts := ServerOptions()
 	handler, err := server.NewServer(&Methods{
-		remember: c.remember,
-		recall:   c.recall,
-		getFact:  c.getFact,
+		remember:   c.remember,
+		recall:     c.recall,
+		getFact:    c.getFact,
+		removeFact: c.removeFact,
 	}, opts...)
 	if err != nil {
 		return err

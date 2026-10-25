@@ -1,0 +1,37 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.counter {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.success {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft);
+  border: 1px solid #fbdcc3;
+}
+
+.successTitle {
+  font-size: 1.0625rem;
+  font-weight: 650;
+}
+
+.summary {
+  font-size: 0.9375rem;
+  color: var(--color-text);
+}

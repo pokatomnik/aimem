@@ -50,6 +50,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/appError"
   /api/v1/fact/{factID}:
+    delete:
+      tags:
+        - mem-api
+      summary: Remove fact by ID
+      description: Remove fact by ID
+      operationId: removeFactByID
+      parameters:
+        - name: factID
+          in: path
+          description: ID of a fact
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Fact removed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - value
+                properties:
+                  value:
+                    $ref: "#/components/schemas/nothing"
     get:
       tags:
         - mem-api
@@ -234,3 +260,7 @@ components:
         - BAD_REQUEST
         - INTERNAL_ERROR
         - NOT_FOUND
+    nothing:
+      type: object
+      description: Nothing when nothing to say but everything is OK
+      additionalProperties: false

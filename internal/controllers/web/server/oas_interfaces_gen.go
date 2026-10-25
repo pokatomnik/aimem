@@ -8,3 +8,7 @@ type AddFactRes interface {
 type GetFactByIDRes interface {
 	getFactByIDRes()
 }
+
+type SearchRes interface {
+	searchRes()
+}

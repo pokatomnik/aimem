@@ -1,0 +1,48 @@
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.title {
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.accent {
+  color: var(--color-accent);
+}
+
+.subtitle {
+  font-size: 0.9375rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+  max-width: 46ch;
+}
+
+.formWrap {
+  width: 100%;
+  max-width: 620px;
+  margin-top: var(--space-4);
+}
+
+.links {
+  display: flex;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+  font-size: 0.875rem;
+}
+
+.link {
+  color: var(--color-text-secondary);
+  transition: color var(--transition);
+}
+
+.link:hover {
+  color: var(--color-accent-strong);
+}

@@ -1,8 +1,14 @@
 GO ?= go
+NPM ?= npm
 
 BINARY     := aimem
 BUILD_DIR  ?= build
 CMD        ?= ./cmd/aimem
+
+UI_DIR   := internal/controllers/web/ui
+UI_DIST  := $(UI_DIR)/dist
+# Reinstall only when the lockfile or manifest changes.
+UI_STAMP := $(UI_DIR)/node_modules/.install-stamp
 
 ifeq ($(shell $(GO) env GOOS),windows)
 BINARY := $(BINARY).exe
@@ -20,13 +26,33 @@ INSTALL_DIR ?= $(GOBIN)
 GO_BUILD_FLAGS := -trimpath -buildvcs=false
 GO_LDFLAGS     := -s -w -buildid=
 
-.PHONY: all build install test generate clean
+.PHONY: all build install test generate clean ui-install ui-build ui-test ui-lint ui-typecheck
 
 all: build
 
-build:
+# The UI is embedded into the binary with go:embed, so it must exist before the
+# Go compiler runs. `ui-build` therefore comes first.
+build: ui-build
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 $(GO) build $(GO_BUILD_FLAGS) -ldflags="$(GO_LDFLAGS)" -o $(BUILD_DIR)/$(BINARY) $(CMD)
+
+$(UI_STAMP): $(UI_DIR)/package.json $(UI_DIR)/package-lock.json
+	cd $(UI_DIR) && $(NPM) ci
+	@touch $(UI_STAMP)
+
+ui-install: $(UI_STAMP)
+
+ui-build: $(UI_STAMP)
+	cd $(UI_DIR) && $(NPM) run build
+
+ui-typecheck: $(UI_STAMP)
+	cd $(UI_DIR) && $(NPM) run typecheck
+
+ui-test: $(UI_STAMP)
+	cd $(UI_DIR) && $(NPM) run test
+
+ui-lint: $(UI_STAMP)
+	cd $(UI_DIR) && $(NPM) run lint
 
 install: build
 	@mkdir -p $(INSTALL_DIR)
@@ -40,4 +66,4 @@ generate:
 	$(GO) generate ./...
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) $(UI_DIST)

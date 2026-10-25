@@ -1,0 +1,74 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.topbar {
+  width: 100%;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.topbarInner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: -0.02em;
+}
+
+.brandMark {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.brandMuted {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-8);
+}
+
+.mainCentered {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-8);
+}
+
+.footer {
+  padding: var(--space-4);
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--color-text-tertiary);
+}

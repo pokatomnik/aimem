@@ -22,4 +22,8 @@ type (
 	Remember interface {
 		Remember(ctx context.Context, fact string) (string, error)
 	}
+
+	RemoveFact interface {
+		RemoveFactByID(ctx context.Context, id string) error
+	}
 )

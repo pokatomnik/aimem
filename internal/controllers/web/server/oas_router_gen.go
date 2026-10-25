@@ -114,13 +114,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					if len(elem) == 0 {
 						// Leaf node.
 						switch r.Method {
+						case "DELETE":
+							s.handleRemoveFactByIDRequest([1]string{
+								args[0],
+							}, elemIsEscaped, w, r)
 						case "GET":
 							s.handleGetFactByIDRequest([1]string{
 								args[0],
 							}, elemIsEscaped, w, r)
 						default:
 							s.notAllowed(w, r, notAllowedParams{
-								allowedMethods: "GET",
+								allowedMethods: "DELETE,GET",
 								allowedHeaders: nil,
 								acceptPost:     "",
 								acceptPatch:    "",
@@ -301,6 +305,15 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 					if len(elem) == 0 {
 						// Leaf node.
 						switch method {
+						case "DELETE":
+							r.name = RemoveFactByIDOperation
+							r.summary = "Remove fact by ID"
+							r.operationID = "removeFactByID"
+							r.operationGroup = ""
+							r.pathPattern = "/api/v1/fact/{factID}"
+							r.args = args
+							r.count = 1
+							return r, true
 						case "GET":
 							r.name = GetFactByIDOperation
 							r.summary = "Get fact contents by ID"

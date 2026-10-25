@@ -20,16 +20,18 @@ type Handler interface {
 	//
 	// GET /api/v1/fact/{factID}
 	GetFactByID(ctx context.Context, params GetFactByIDParams) (GetFactByIDRes, error)
+	// RemoveFactByID implements removeFactByID operation.
+	//
+	// Remove fact by ID.
+	//
+	// DELETE /api/v1/fact/{factID}
+	RemoveFactByID(ctx context.Context, params RemoveFactByIDParams) (*RemoveFactByIDOK, error)
 	// Search implements search operation.
 	//
 	// Make a search by meaning.
 	//
 	// POST /api/v1/search
-	Search(ctx context.Context, req *SearchRequestBody) (*SearchOK, error)
-	// NewError creates *AppErrorStatusCode from error returned by handler.
-	//
-	// Used for common default response.
-	NewError(ctx context.Context, err error) *AppErrorStatusCode
+	Search(ctx context.Context, req *SearchRequestBody) (SearchRes, error)
 }
 
 // Server implements http server based on OpenAPI v3 specification and

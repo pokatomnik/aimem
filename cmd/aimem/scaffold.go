@@ -77,7 +77,7 @@ func scaffold() (*cobra.Command, error) {
 	getFact := cmdGetFactPackage.GetFactCmd(fac)
 	removeFact := cmdRemoveFactPackage.RemoveFactCmd(del)
 
-	webController := cmdWebPackage.New(cfg, rem, rec, fac)
+	webController := cmdWebPackage.New(cfg, rem, rec, fac, del)
 
 	consume := cmdConsumePackage.Consume(con)
 

@@ -23,10 +23,18 @@ func ServerOptions() []server.ServerOption {
 	}
 }
 
-// RequestErrorHandler handles failures raised before a handler of ours runs:
-// malformed JSON, a body or parameter that fails spec validation, an
-// unexpected Content-Type. Such a request does not match the contract, so it
-// is reported as 400.
+// RequestErrorHandler handles every failure the generated server cannot turn
+// into a response, which includes two distinct kinds.
+//
+// Failures raised before a handler of ours runs — malformed JSON, a body or
+// parameter that fails spec validation, an unexpected Content-Type — do not
+// match the contract, so they are reported as 400.
+//
+// Errors returned by a handler arrive here too, because the generated server
+// routes them to the configured error handler rather than calling NewError.
+// Those carry domain meaning, so they go through mapDomainError and keep their
+// own status: a missing fact stays 404, a duplicate stays 409. Reporting them
+// as a blanket 500 would erase that distinction.
 func RequestErrorHandler(
 	ctx context.Context,
 	w http.ResponseWriter,
@@ -38,10 +46,11 @@ func RequestErrorHandler(
 		return
 	}
 
-	// Anything else reaching this point — a broken response encoder, a panic
-	// recovered upstream — is a fault on our side. Reporting it as 400 would
-	// hide a server bug behind a client error.
-	writeAppError(w, http.StatusInternalServerError, server.ErrorCodeINTERNALERROR, err.Error())
+	// Domain and unknown errors alike: mapDomainError picks the right status for
+	// a known cause and falls back to 500 for anything nobody anticipated, so a
+	// server bug is never reported as a client error.
+	code, ec := mapDomainError(err)
+	writeAppError(w, code, ec, err.Error())
 }
 
 // NotFoundHandler answers requests whose path is absent from the spec.

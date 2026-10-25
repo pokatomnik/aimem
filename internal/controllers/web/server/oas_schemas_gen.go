@@ -3,15 +3,10 @@
 package server
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/go-faster/errors"
 )
-
-func (s *AppErrorStatusCode) Error() string {
-	return fmt.Sprintf("code %d: %+v", s.StatusCode, s.Response)
-}
 
 // Ref: #/components/schemas/addFactParams
 type AddFactParams struct {
@@ -97,6 +92,10 @@ func (s *AppErrorStatusCode) SetStatusCode(val int) {
 func (s *AppErrorStatusCode) SetResponse(val AppError) {
 	s.Response = val
 }
+
+func (*AppErrorStatusCode) addFactRes()     {}
+func (*AppErrorStatusCode) getFactByIDRes() {}
+func (*AppErrorStatusCode) searchRes()      {}
 
 // Ref: #/components/schemas/errorCode
 type ErrorCode string
@@ -289,6 +288,10 @@ func (s *GetFactByIDOK) SetValue(val Fact) {
 
 func (*GetFactByIDOK) getFactByIDRes() {}
 
+// Nothing when nothing to say but everything is OK.
+// Ref: #/components/schemas/nothing
+type Nothing struct{}
+
 // NewOptString returns new OptString with value set to v.
 func NewOptString(v string) OptString {
 	return OptString{
@@ -335,6 +338,20 @@ func (o OptString) Or(d string) string {
 	return d
 }
 
+type RemoveFactByIDOK struct {
+	Value Nothing `json:"value"`
+}
+
+// GetValue returns the value of Value.
+func (s *RemoveFactByIDOK) GetValue() Nothing {
+	return s.Value
+}
+
+// SetValue sets the value of Value.
+func (s *RemoveFactByIDOK) SetValue(val Nothing) {
+	s.Value = val
+}
+
 type SearchOK struct {
 	Value SearchResult `json:"value"`
 }
@@ -348,6 +365,8 @@ func (s *SearchOK) GetValue() SearchResult {
 func (s *SearchOK) SetValue(val SearchResult) {
 	s.Value = val
 }
+
+func (*SearchOK) searchRes() {}
 
 // Ref: #/components/schemas/searchRequestBody
 type SearchRequestBody struct {

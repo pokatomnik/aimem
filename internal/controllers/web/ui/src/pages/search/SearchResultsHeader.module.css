@@ -1,0 +1,7 @@
+.count {
+  margin-bottom: var(--space-4);
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}

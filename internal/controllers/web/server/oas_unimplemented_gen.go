@@ -31,19 +31,20 @@ func (UnimplementedHandler) GetFactByID(ctx context.Context, params GetFactByIDP
 	return r, ht.ErrNotImplemented
 }
 
+// RemoveFactByID implements removeFactByID operation.
+//
+// Remove fact by ID.
+//
+// DELETE /api/v1/fact/{factID}
+func (UnimplementedHandler) RemoveFactByID(ctx context.Context, params RemoveFactByIDParams) (r *RemoveFactByIDOK, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // Search implements search operation.
 //
 // Make a search by meaning.
 //
 // POST /api/v1/search
-func (UnimplementedHandler) Search(ctx context.Context, req *SearchRequestBody) (r *SearchOK, _ error) {
+func (UnimplementedHandler) Search(ctx context.Context, req *SearchRequestBody) (r SearchRes, _ error) {
 	return r, ht.ErrNotImplemented
-}
-
-// NewError creates *AppErrorStatusCode from error returned by handler.
-//
-// Used for common default response.
-func (UnimplementedHandler) NewError(ctx context.Context, err error) (r *AppErrorStatusCode) {
-	r = new(AppErrorStatusCode)
-	return r
 }

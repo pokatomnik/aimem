@@ -8,9 +8,10 @@ import (
 )
 
 type Methods struct {
-	remember Remember
-	recall   Recall
-	getFact  GetFact
+	remember   Remember
+	recall     Recall
+	getFact    GetFact
+	removeFact RemoveFact
 }
 
 func (m *Methods) AddFact(ctx context.Context, req *server.AddFactReq) (server.AddFactRes, error) {
@@ -45,7 +46,7 @@ func (m *Methods) GetFactByID(ctx context.Context, params server.GetFactByIDPara
 	}, nil
 }
 
-func (m *Methods) Search(ctx context.Context, req *server.SearchRequestBody) (*server.SearchOK, error) {
+func (m *Methods) Search(ctx context.Context, req *server.SearchRequestBody) (server.SearchRes, error) {
 	res, err := m.recall.Recall(ctx, req.Query)
 	if err != nil {
 		return nil, err
@@ -68,5 +69,16 @@ func (m *Methods) Search(ctx context.Context, req *server.SearchRequestBody) (*s
 		Value: server.SearchResult{
 			Found: found,
 		},
+	}, nil
+}
+
+func (m *Methods) RemoveFactByID(ctx context.Context, params server.RemoveFactByIDParams) (*server.RemoveFactByIDOK, error) {
+	err := m.removeFact.RemoveFactByID(ctx, params.FactID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &server.RemoveFactByIDOK{
+		Value: server.Nothing{},
 	}, nil
 }

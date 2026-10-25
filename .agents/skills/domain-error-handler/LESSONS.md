@@ -50,3 +50,39 @@ grep -n "NotFoundHandler" -A 3 internal/controllers/web/error_response.go
 ```
 
 Expect `http.StatusNotFound` together with `server.ErrorCodeNOTFOUND`.
+
+---
+
+## 2. Error handler errors must keep their domain status
+
+**What I did.** `RequestErrorHandler` in `internal/controllers/web/error_response.go`
+classified only decode and content-type errors as 400 and reported every other
+error as `500 INTERNAL_ERROR`, while `Methods.NewError` held the real domain
+mapping. When the generated server stopped calling `NewError` and routed handler
+errors to `cfg.ErrorHandler` instead, `ErrFactDoesNotExist` became 500 and
+`ErrAlreadyHasFact` stopped being 409.
+
+**What the user said.** "Разрешаю, это большая проблема. Так быть не должно."
+
+**Why it was wrong.** Two entry points turned errors into responses, but only
+one of them knew the mapping. The generated handler path silently lost it, so a
+client error was reported as a server fault — a missing fact looked like a
+broken server, and clients lost the branches their spec promised. The tests
+stayed green because `error_handler_test.go` exercised `NewError` directly, a
+code path the server no longer calls.
+
+**Rule.** The domain mapping must live in exactly one function,
+`mapDomainError`, and every path that converts an error into a response must go
+through it: `Methods.NewError` and `RequestErrorHandler` alike.
+`RequestErrorHandler` checks `isRequestError` first (client fault → 400) and
+delegates everything else to `mapDomainError`. Never hardcode a status for the
+remaining branch.
+
+**Check.**
+
+```sh
+CGO_ENABLED=0 go test ./internal/controllers/web/ -run 'TestRequestErrorHandlerDomainError|TestRequestErrorHandlerWrappedDomainError' -v
+```
+
+Expect 404/409/422/502 per domain error, including wrapped ones, and
+`FACT_DOES_NOT_EXIST` rather than `INTERNAL_ERROR` in the body.

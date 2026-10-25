@@ -79,3 +79,69 @@ func decodeGetFactByIDParams(args [1]string, argsEscaped bool, r *http.Request) 
 	}
 	return params, nil
 }
+
+// RemoveFactByIDParams is parameters of removeFactByID operation.
+type RemoveFactByIDParams struct {
+	// ID of a fact.
+	FactID string
+}
+
+func unpackRemoveFactByIDParams(packed middleware.Parameters) (params RemoveFactByIDParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "factID",
+			In:   "path",
+		}
+		params.FactID = packed[key].(string)
+	}
+	return params
+}
+
+func decodeRemoveFactByIDParams(args [1]string, argsEscaped bool, r *http.Request) (params RemoveFactByIDParams, _ error) {
+	// Decode path: factID.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "factID",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.FactID = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "factID",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}

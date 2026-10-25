@@ -15,6 +15,7 @@ import (
 	"github.com/ogen-go/ogen/validate"
 
 	"github.com/pokatomnik/gomem/internal/controllers/web/server"
+	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 )
 
 func TestRequestErrorHandlerRequestError(t *testing.T) {
@@ -102,6 +103,113 @@ func TestRequestErrorHandlerServerFault(t *testing.T) {
 				t.Errorf("error = %q, want %q", body.Error, server.ErrorCodeINTERNALERROR)
 			}
 		})
+	}
+}
+
+// TestRequestErrorHandlerDomainError guards the path taken by errors returned
+// from our own handlers. The generated server routes them to the configured
+// error handler instead of calling NewError, so a domain error must keep its
+// own status here. A blanket 500 would turn a missing fact into a server fault.
+func TestRequestErrorHandlerDomainError(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantCode   server.ErrorCode
+	}{
+		{
+			name:       "db convert error",
+			err:        apperrors.ErrDBConvertError,
+			wantStatus: http.StatusInternalServerError,
+			wantCode:   server.ErrorCodeDBCONVERTERROR,
+		},
+		{
+			name:       "fact does not exist",
+			err:        apperrors.ErrFactDoesNotExist,
+			wantStatus: http.StatusNotFound,
+			wantCode:   server.ErrorCodeFACTDOESNOTEXIST,
+		},
+		{
+			name:       "already has fact",
+			err:        apperrors.ErrAlreadyHasFact,
+			wantStatus: http.StatusConflict,
+			wantCode:   server.ErrorCodeALREADYHASFACT,
+		},
+		{
+			name:       "empty embeddings",
+			err:        apperrors.ErrEmptyEmbeddings,
+			wantStatus: http.StatusUnprocessableEntity,
+			wantCode:   server.ErrorCodeEMPTYEMBEDDINGS,
+		},
+		{
+			name:       "embeddings quantity mismatch",
+			err:        apperrors.ErrEmbeddingsQuantityNotEqualToFactsQuantity,
+			wantStatus: http.StatusUnprocessableEntity,
+			wantCode:   server.ErrorCodeEMPTYEMBEDDINGS,
+		},
+		{
+			name:       "cannot get models",
+			err:        apperrors.ErrCannotGetModels,
+			wantStatus: http.StatusBadGateway,
+			wantCode:   server.ErrorCodeCANNOTGETMODELS,
+		},
+		{
+			name:       "get embeddings",
+			err:        apperrors.ErrGetEmbeddings,
+			wantStatus: http.StatusBadGateway,
+			wantCode:   server.ErrorCodeCANNOTGETMODELS,
+		},
+		{
+			name:       "summarize",
+			err:        apperrors.ErrSummarize,
+			wantStatus: http.StatusBadGateway,
+			wantCode:   server.ErrorCodeCANNOTGETMODELS,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+
+			RequestErrorHandler(context.Background(), rec, httptest.NewRequest(http.MethodGet, "/api/v1/fact/x", nil), tt.err)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+
+			body := decodeAppError(t, rec)
+			if body.Error != tt.wantCode {
+				t.Errorf("error = %q, want %q", body.Error, tt.wantCode)
+			}
+			if body.Message == nil || *body.Message != tt.err.Error() {
+				t.Errorf("message = %v, want %q", body.Message, tt.err.Error())
+			}
+		})
+	}
+}
+
+// TestRequestErrorHandlerWrappedDomainError guards the errors.Is form of the
+// mapping. Repositories and use cases wrap domain errors with
+// fmt.Errorf("%w"), so a comparison by identity would fall through to 500 and
+// report a known cause as an unmapped failure.
+func TestRequestErrorHandlerWrappedDomainError(t *testing.T) {
+	inner := fmt.Errorf("get fact: %w", apperrors.ErrFactDoesNotExist)
+	wrapped := fmt.Errorf("load: %w", inner)
+
+	rec := httptest.NewRecorder()
+
+	RequestErrorHandler(context.Background(), rec, httptest.NewRequest(http.MethodGet, "/api/v1/fact/x", nil), wrapped)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+
+	body := decodeAppError(t, rec)
+	if body.Error != server.ErrorCodeFACTDOESNOTEXIST {
+		t.Errorf("error = %q, want %q", body.Error, server.ErrorCodeFACTDOESNOTEXIST)
+	}
+	if body.Message == nil || *body.Message != wrapped.Error() {
+		t.Errorf("message = %v, want the full wrapped text %q", body.Message, wrapped.Error())
 	}
 }
 

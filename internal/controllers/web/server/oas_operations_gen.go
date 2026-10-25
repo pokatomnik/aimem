@@ -6,7 +6,8 @@ package server
 type OperationName = string
 
 const (
-	AddFactOperation     OperationName = "AddFact"
-	GetFactByIDOperation OperationName = "GetFactByID"
-	SearchOperation      OperationName = "Search"
+	AddFactOperation        OperationName = "AddFact"
+	GetFactByIDOperation    OperationName = "GetFactByID"
+	RemoveFactByIDOperation OperationName = "RemoveFactByID"
+	SearchOperation         OperationName = "Search"
 )

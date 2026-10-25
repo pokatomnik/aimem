@@ -1,0 +1,24 @@
+export { ApiError, isAbortError } from "@/shared/api/ApiError";
+export type { ApiErrorOptions } from "@/shared/api/ApiError";
+export { createFactApi } from "@/shared/api/client";
+export type {
+  Fact,
+  FactApi,
+  FactApiConfig,
+  FactListItem,
+  FetchLike,
+  RequestOptions,
+} from "@/shared/api/client";
+export {
+  ERROR_MESSAGES,
+  getErrorMessage,
+  isErrorCode,
+} from "@/shared/api/errorMessages";
+export type {
+  ContractErrorCode,
+  ErrorCode,
+  LocalErrorCode,
+} from "@/shared/api/errorMessages";
+export { createQueryClient } from "@/shared/api/queryClient";
+export { unwrap } from "@/shared/api/unwrap";
+export type { ApiResult } from "@/shared/api/unwrap";

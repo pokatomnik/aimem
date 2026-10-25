@@ -95,8 +95,8 @@ func decodeAddFactResponse(resp *http.Response) (res AddFactRes, _ error) {
 			return res, validate.InvalidContentType(ct)
 		}
 	}
-	// Convenient error response.
-	defRes, err := func() (res *AppErrorStatusCode, err error) {
+	// Default response.
+	res, err := func() (res AddFactRes, err error) {
 		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 		if err != nil {
 			return res, errors.Wrap(err, "parse media type")
@@ -146,7 +146,7 @@ func decodeAddFactResponse(resp *http.Response) (res AddFactRes, _ error) {
 	if err != nil {
 		return res, errors.Wrapf(err, "default (code %d)", resp.StatusCode)
 	}
-	return res, errors.Wrap(defRes, "error")
+	return res, nil
 }
 
 func decodeGetFactByIDResponse(resp *http.Response) (res GetFactByIDRes, _ error) {
@@ -231,8 +231,8 @@ func decodeGetFactByIDResponse(resp *http.Response) (res GetFactByIDRes, _ error
 			return res, validate.InvalidContentType(ct)
 		}
 	}
-	// Convenient error response.
-	defRes, err := func() (res *AppErrorStatusCode, err error) {
+	// Default response.
+	res, err := func() (res GetFactByIDRes, err error) {
 		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 		if err != nil {
 			return res, errors.Wrap(err, "parse media type")
@@ -282,10 +282,51 @@ func decodeGetFactByIDResponse(resp *http.Response) (res GetFactByIDRes, _ error
 	if err != nil {
 		return res, errors.Wrapf(err, "default (code %d)", resp.StatusCode)
 	}
-	return res, errors.Wrap(defRes, "error")
+	return res, nil
 }
 
-func decodeSearchResponse(resp *http.Response) (res *SearchOK, _ error) {
+func decodeRemoveFactByIDResponse(resp *http.Response) (res *RemoveFactByIDOK, _ error) {
+	switch resp.StatusCode {
+	case 200:
+		// Code 200.
+		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			return res, errors.Wrap(err, "parse media type")
+		}
+		switch {
+		case ct == "application/json":
+			buf, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return res, err
+			}
+			d := jx.DecodeBytes(buf)
+
+			var response RemoveFactByIDOK
+			if err := func() error {
+				if err := response.Decode(d); err != nil {
+					return err
+				}
+				if err := d.Skip(); err != io.EOF {
+					return errors.New("unexpected trailing data")
+				}
+				return nil
+			}(); err != nil {
+				err = &ogenerrors.DecodeBodyError{
+					ContentType: ct,
+					Body:        buf,
+					Err:         err,
+				}
+				return res, err
+			}
+			return &response, nil
+		default:
+			return res, validate.InvalidContentType(ct)
+		}
+	}
+	return res, validate.UnexpectedStatusCodeWithResponse(resp)
+}
+
+func decodeSearchResponse(resp *http.Response) (res SearchRes, _ error) {
 	switch resp.StatusCode {
 	case 200:
 		// Code 200.
@@ -332,8 +373,8 @@ func decodeSearchResponse(resp *http.Response) (res *SearchOK, _ error) {
 			return res, validate.InvalidContentType(ct)
 		}
 	}
-	// Convenient error response.
-	defRes, err := func() (res *AppErrorStatusCode, err error) {
+	// Default response.
+	res, err := func() (res SearchRes, err error) {
 		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 		if err != nil {
 			return res, errors.Wrap(err, "parse media type")
@@ -383,5 +424,5 @@ func decodeSearchResponse(resp *http.Response) (res *SearchOK, _ error) {
 	if err != nil {
 		return res, errors.Wrapf(err, "default (code %d)", resp.StatusCode)
 	}
-	return res, errors.Wrap(defRes, "error")
+	return res, nil
 }

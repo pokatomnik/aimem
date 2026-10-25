@@ -11,29 +11,11 @@ import (
 
 // NewError maps domain errors to the common default response.
 //
-// It is called by the generated server for every error returned by a handler,
-// so it is the single place where apperrors become HTTP status codes.
+// It must stay consistent with RequestErrorHandler, which serves as the
+// generated server's error handler and therefore sees the same domain errors.
+// Both go through mapDomainError so the two entry points cannot drift apart.
 func (m *Methods) NewError(ctx context.Context, err error) *server.AppErrorStatusCode {
-	var (
-		code = http.StatusInternalServerError
-		ec   = server.ErrorCodeINTERNALERROR
-	)
-
-	switch {
-	case errors.Is(err, apperrors.ErrDBConvertError):
-		code, ec = http.StatusInternalServerError, server.ErrorCodeDBCONVERTERROR
-	case errors.Is(err, apperrors.ErrFactDoesNotExist):
-		code, ec = http.StatusNotFound, server.ErrorCodeFACTDOESNOTEXIST
-	case errors.Is(err, apperrors.ErrAlreadyHasFact):
-		code, ec = http.StatusConflict, server.ErrorCodeALREADYHASFACT
-	case errors.Is(err, apperrors.ErrEmptyEmbeddings),
-		errors.Is(err, apperrors.ErrEmbeddingsQuantityNotEqualToFactsQuantity):
-		code, ec = http.StatusUnprocessableEntity, server.ErrorCodeEMPTYEMBEDDINGS
-	case errors.Is(err, apperrors.ErrCannotGetModels),
-		errors.Is(err, apperrors.ErrGetEmbeddings),
-		errors.Is(err, apperrors.ErrSummarize):
-		code, ec = http.StatusBadGateway, server.ErrorCodeCANNOTGETMODELS
-	}
+	code, ec := mapDomainError(err)
 
 	return &server.AppErrorStatusCode{
 		StatusCode: code,
@@ -42,4 +24,31 @@ func (m *Methods) NewError(ctx context.Context, err error) *server.AppErrorStatu
 			Message: server.NewOptString(err.Error()),
 		},
 	}
+}
+
+// mapDomainError converts a domain error into the status code and body code it
+// deserves. It is the single source of truth for that mapping: every caller
+// that turns an error into a response must go through it, otherwise a domain
+// error reported somewhere else loses its specific status.
+//
+// An error nobody anticipated falls through to 500 INTERNAL_ERROR, which
+// names an unmapped failure honestly instead of borrowing a specific code.
+func mapDomainError(err error) (int, server.ErrorCode) {
+	switch {
+	case errors.Is(err, apperrors.ErrDBConvertError):
+		return http.StatusInternalServerError, server.ErrorCodeDBCONVERTERROR
+	case errors.Is(err, apperrors.ErrFactDoesNotExist):
+		return http.StatusNotFound, server.ErrorCodeFACTDOESNOTEXIST
+	case errors.Is(err, apperrors.ErrAlreadyHasFact):
+		return http.StatusConflict, server.ErrorCodeALREADYHASFACT
+	case errors.Is(err, apperrors.ErrEmptyEmbeddings),
+		errors.Is(err, apperrors.ErrEmbeddingsQuantityNotEqualToFactsQuantity):
+		return http.StatusUnprocessableEntity, server.ErrorCodeEMPTYEMBEDDINGS
+	case errors.Is(err, apperrors.ErrCannotGetModels),
+		errors.Is(err, apperrors.ErrGetEmbeddings),
+		errors.Is(err, apperrors.ErrSummarize):
+		return http.StatusBadGateway, server.ErrorCodeCANNOTGETMODELS
+	}
+
+	return http.StatusInternalServerError, server.ErrorCodeINTERNALERROR
 }
