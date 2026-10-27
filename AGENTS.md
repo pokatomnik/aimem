@@ -12,6 +12,7 @@ Code is layered, with dependencies pointing inward:
 - `internal/use_cases/<command>/` — business logic; declares the narrow interfaces it consumes. Split by concern, e.g. `consume/{use_case,ai,unpack,fact}.go`.
 - `internal/entities/` — domain types (`fact`, `ollama`) and sentinel errors (`apperrors`).
 - `internal/repositories/kv/` — storage; also writes `plain.jsonl`, an append-only log of additions.
+- `internal/repositories/qdrant/` — the same storage contract backed by Qdrant over HTTP; keeps the `kv` schema and satisfies the use cases' interfaces, but `scaffold` does not select it yet.
 - `internal/adapters/` — outbound integrations (`ollama`) and inbound input (`input`), plus the servers (`servers/{mcp,stdio,http}`).
 - `internal/shared/` — cross-cutting helpers.
 
@@ -24,7 +25,9 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
 ## Architectural Constraints
 
 - **Single fixed storage.** One local dataset, no namespaces or profiles. Config is file-only, with no flags or env overrides. Unknown config keys are ignored silently — a typo leaves the field at its zero value, so keep `config.toml.example` in sync with `Config`.
-- **Recall is semantic only**, returning summaries — no tags, filters, or keyword search. `topK` is applied first, then results are filtered by `similarityThreshold`; xvec reports cosine as a distance (0 = identical), so the code converts it to a similarity before comparing.
+- **Stored records are immutable.** This holds for every backend, `kv` and `qdrant` alike, and for any storage added later: a fact is written once and never patched in place. A fact's identity is the SHA-256 digest of its text, so the ID and the content always agree; rewriting the content while keeping the ID would break that correspondence. Writing the same text again answers `ErrAlreadyHasFact` instead of overwriting. A change, if one is ever needed, is two steps — delete the record, then write the new one — so a stored record is always the result of exactly one write. Concretely: do not call in-place update APIs (payload update, vector update, partial or batch overwrite). `internal/repositories/qdrant/immutability_test.go` enforces this for the Qdrant backend by failing if any operation reaches a mutation endpoint.
+  - The write path is read-then-write: `AddFact` checks whether the point exists and then inserts it, in two requests. Two concurrent writers of the same text can both pass the check; the loser then rewrites the same ID with the same content and sees success instead of `ErrAlreadyHasFact`. The data stays correct, so the window is accepted — writes are far rarer than reads. Do not paper over it with a process-local lock: a second instance is a separate process and would not share it, so the lock would only hide the window.
+- **Recall is semantic only**, returning summaries — no tags, filters, or keyword search. `topK` is applied first, then results are filtered by `similarityThreshold`. The two backends report that number differently and the adapter must respect it: xvec returns a cosine _distance_ (0 = identical), so `kv` converts it with `1 - Score`, while Qdrant's cosine score is already a similarity and must not be inverted.
 - **No timeouts.** Requests run without a deadline, so a slow backend blocks the CLI. Cancellation exists only through signals: `main` wraps `context.Background()` in `signal.NotifyContext` (SIGINT/SIGTERM/SIGQUIT) and prints `Cancelled` when the context is canceled.
 - **Import is sequential**, and the write orchestration is duplicated between `remember` and `import`.
 - **`plain.jsonl` is append-only.** Removing a fact does not rewrite it, by design.
@@ -77,6 +80,7 @@ Current coverage:
 
 - `internal/adapters/servers/mcp/server_test.go` — tool names, descriptions, and the key guidance in `INSTRUCTIONS.md`, driven through an in-memory MCP transport. Reads the embedded text only; complies with the rules above.
 - `internal/repositories/kv/getfacts_test.go` — **no tests**: the file is a `TODO` explaining that `GetFactsList` is uncovered and must be tested through a faked collection rather than a real xvec one. See the note above.
+- `internal/repositories/qdrant/` — the four operations against a fake `http.RoundTripper`: request shapes (named vector, `wait=true`, `topK` as the limit), that the score is compared as a similarity without the kv inversion, duplicate and missing-fact answers, collection creation, and API-key propagation. `immutability_test.go` runs every operation and fails if any request reaches an in-place mutation endpoint.
 
 Run with `make test`. When you delete a phrase that a test asserts on, update the test in the same change.
 

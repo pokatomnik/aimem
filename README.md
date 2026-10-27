@@ -9,6 +9,10 @@ Everything runs on your machine: Ollama does the embedding and summarization,
 and the vector database lives in `~/.aimem`. There are no external services and
 no API keys.
 
+A `docker-compose.yaml` is included to run [Qdrant](https://qdrant.tech) locally
+as a drop-in replacement for the embedded index once `kv` is ported to it; see
+[Start the vector database](#3-start-the-vector-database-qdrant).
+
 ## Features
 
 - `remember` — save a fact; it is summarized and embedded.
@@ -23,6 +27,8 @@ no API keys.
 
 - Go 1.27.1 or newer (see `go.mod`).
 - [Ollama](https://ollama.com) running locally or reachable over HTTP.
+- [Docker](https://docs.docker.com/get-docker/) with the Compose plugin, only if
+  you want the bundled Qdrant service.
 - An embedding model and a text-generation model pulled in Ollama, for example:
 
   ```sh
@@ -117,6 +123,135 @@ webHttpHost = "127.0.0.1:8888"
 > `dimensions` must match the number of values returned by the embedding model.
 > If you change it after the database has been created, recreate `~/.aimem`.
 
+### 3. Start the vector database (Qdrant)
+
+The repository ships a `docker-compose.yaml` that runs [Qdrant](https://qdrant.tech)
+with default settings, published on loopback only. All it needs is Docker:
+
+```sh
+cp .env.example .env      # optional: override ports, image tag, payload storage
+docker compose up -d      # start in the background
+docker compose down       # stop; data stays in the named volumes
+docker compose down -v    # stop and delete the data
+```
+
+Check readiness before pointing anything at it:
+
+```sh
+curl http://127.0.0.1:6333/readyz    # all shards are ready
+curl http://127.0.0.1:6333/healthz   # healthz check passed
+```
+
+The API is then at `http://127.0.0.1:6333` (REST) and `127.0.0.1:6334` (gRPC), and
+the web UI at `http://127.0.0.1:6333/dashboard`.
+
+#### Environment variables
+
+Values come from `.env` (Compose picks it up from the directory holding
+`docker-compose.yaml`) or from the environment. Every variable is optional and
+falls back to the default in the table; leaving one empty in `.env` also gives the
+default. `.env` is git-ignored, `.env.example` is the committed template with a
+comment per variable.
+
+| Variable                    | Default     | Description                                                                       |
+| --------------------------- | ----------- | --------------------------------------------------------------------------------- |
+| `QDRANT_VERSION`            | `v1.15.4`   | Image tag. Bump deliberately — major upgrades may need a data migration.          |
+| `QDRANT_HTTP_PORT`          | `6333`      | Host port for the REST API.                                                       |
+| `QDRANT_GRPC_PORT`          | `6334`      | Host port for the gRPC API.                                                       |
+| `QDRANT_HTTP_HOST`          | `127.0.0.1` | Host address the REST port is bound to. `0.0.0.0` exposes it beyond this machine. |
+| `QDRANT_GRPC_HOST`          | `127.0.0.1` | Same, for gRPC.                                                                   |
+| `QDRANT_API_KEY`            | _(empty)_   | Key enabling write and read access. See the warning below before setting it.      |
+| `QDRANT_READ_ONLY_API_KEY`  | _(empty)_   | Separate key limited to reads.                                                    |
+| `QDRANT_ON_DISK_PAYLOAD`    | `true`      | Keep payload and its indexes on disk instead of in RAM.                           |
+| `QDRANT_LOG_LEVEL`          | `INFO`      | `TRACE`, `DEBUG`, `INFO`, `WARN`, or `ERROR`.                                     |
+| `QDRANT_TELEMETRY_DISABLED` | `false`     | `true` stops reporting usage statistics to the vendor.                            |
+
+Inside the container the ports stay `6333`/`6334`; the variables only move the
+host-side mapping. Data lives in the `qdrant_storage` and `qdrant_snapshots`
+volumes, so `docker compose down` keeps it and `down -v` wipes it.
+
+Qdrant has no authentication by default, which is why the ports are bound to
+`127.0.0.1`. If you change `QDRANT_HTTP_HOST`/`QDRANT_GRPC_HOST` to `0.0.0.0`,
+turn authentication on at the same time.
+
+> `QDRANT_API_KEY` alone does nothing: Qdrant reads `service.api_key` as an
+> optional string, and an _empty_ value counts as a key — it turns authentication
+> on with a blank password and the app can no longer connect. So the two
+> `QDRANT__SERVICE__API_KEY` lines in `docker-compose.yaml` are commented out
+> rather than fed `${QDRANT_API_KEY:-}`. To enable a key: put it in `.env`,
+> uncomment those two lines, and restart. `/healthz`, `/readyz`, `/livez` and
+> `/dashboard` stay reachable even with a key set, so a readiness probe passing
+> does not prove your client is authenticated.
+
+No healthcheck is defined: the image is built on `debian-slim` without `curl` or
+`wget`, and a port check would show the socket is open without proving the shards
+are ready — use `/readyz` from the host instead.
+
+#### Shape the collection must have
+
+Storing aimem's memory in Qdrant requires a collection mirroring the current `kv`
+module's schema, so the repository keeps its contract (`AddFact`, `GetFactByID`,
+`GetFactsList`, `RemoveFactByID`):
+
+| Item         | Value                                                                        |
+| ------------ | ---------------------------------------------------------------------------- |
+| Collection   | `memory`                                                                     |
+| Distance     | `Cosine`                                                                     |
+| Vector       | `embedding`, size `dimensions` from `config.toml` (default `768`), `float32` |
+| Point ID     | derived from the fact's SHA-256 — Qdrant takes only a UUID or `u64`          |
+| Payload keys | `summary`, `fact`, `created_at` (all strings)                                |
+
+Two details differ from xvec and are handled by the adapter, not by this compose
+file. Qdrant accepts a point ID only as an unsigned integer or a UUID, so the hex
+digest is shaped into a UUID by keeping its first 32 hex characters; the UUID
+parser Qdrant uses does not check the version or variant bits, so an arbitrary
+prefix is accepted and the ID stays deterministic. And Qdrant's cosine score is
+already a similarity, so the `1 - result.Score` inversion in `GetFactsList` must
+not be applied on top of it.
+
+#### Records are immutable
+
+Immutability is a property of the stored data, not of one backend. It holds for
+the embedded xvec index and for Qdrant alike, and any storage added later must
+keep it.
+
+A fact is written once and never patched in place. Writing the same text again is
+answered with `db already has fact` instead of overwriting it. A fact that ever
+had to change would be removed and inserted again — delete, then write — so a
+stored record is always the result of exactly one write.
+
+The rule follows from the identity: a fact's ID is the SHA-256 digest of its
+text, so the ID and the content always agree. Rewriting the content while keeping
+the ID would break that correspondence. Keeping records whole also removes a
+whole class of problems: no half-updated payload, no vector and payload from
+different writes, no question of which field the last writer touched.
+
+For Qdrant this is enforced, not assumed. The repository touches only four
+endpoints — insert, retrieve, query and delete — and `immutability_test.go` runs
+every operation and fails if any request reaches a payload or vector update
+endpoint (`/points/payload`, `/points/vectors`, `/points/batch`). Storing a
+half-updated record is therefore a test failure, not a matter of discipline.
+
+**Known limitation.** `AddFact` checks whether the point exists and then inserts
+it, in two requests. Two concurrent writers of the same text can both pass the
+check; the second insert replaces the record with the same ID and the same
+content, only `created_at` is refreshed. The data stays correct — both writers
+hold the same fact, so the record is still exactly one write's worth of content —
+but the loser sees success instead of `db already has fact`.
+
+Closing that window would need a conditional insert. Qdrant keeps one internally
+but does not expose it over REST or gRPC in the pinned version, and its
+`update_filter` guards updates of existing points rather than refusing an insert.
+A process-local lock would not help: a second instance of `aimem` is a separate
+process and would not share the lock, so it would only hide the window. Writes are
+far rarer than reads, so the window is accepted rather than patched.
+
+> The application still uses the embedded xvec index; this compose file only
+> stands up the database. Until `internal/repositories/kv` is ported to Qdrant,
+> `aimem` does not connect to it and keeps storing data in `~/.aimem`. The Qdrant
+> repository is available at `internal/repositories/qdrant` and is already wired
+> to the use cases' interfaces.
+
 ## Usage
 
 ```sh
@@ -198,7 +333,8 @@ All data is stored in `~/.aimem`:
 
 `plain.jsonl` records additions only: removing a fact deletes it from the
 collection but leaves the line in the log. Delete the whole directory to start
-from scratch.
+from scratch. Stored records are immutable on both backends — see
+[Records are immutable](#records-are-immutable).
 
 ## Development
 
