@@ -7,8 +7,11 @@ import (
 	toml "github.com/pelletier/go-toml/v2"
 )
 
-func InitConfig() (*Config, error) {
-	configPath, err := configPath()
+// Reads configuration from a file
+// located ~/.config/aimem/config.toml,
+// returns error if file is missing
+func GetConfig() (*Config, error) {
+	configPath, err := ConfigPath()
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +31,8 @@ func InitConfig() (*Config, error) {
 	return &config, nil
 }
 
-func configPath() (string, error) {
+// Get a user-local configuration file path
+func ConfigPath() (string, error) {
 	userHome, err := os.UserHomeDir()
 	if err != nil {
 		return "", err

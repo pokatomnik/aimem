@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -8,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pokatomnik/gomem/internal/adapters/servers/mcp"
+	"github.com/pokatomnik/gomem/internal/shared/colors"
 
 	config "github.com/pokatomnik/gomem/cmd/aimem/config"
 	aInputPackage "github.com/pokatomnik/gomem/internal/adapters/input"
@@ -17,6 +19,7 @@ import (
 	cmdConsumePackage "github.com/pokatomnik/gomem/internal/controllers/cli/consume"
 	cmdGetFactPackage "github.com/pokatomnik/gomem/internal/controllers/cli/getfact"
 	cmdMCPHTTPPackage "github.com/pokatomnik/gomem/internal/controllers/cli/http"
+	cmdInitPackage "github.com/pokatomnik/gomem/internal/controllers/cli/init"
 	cmdMCPPackage "github.com/pokatomnik/gomem/internal/controllers/cli/mcp"
 	cmdRecallPackage "github.com/pokatomnik/gomem/internal/controllers/cli/recall"
 	cmdRememberPackage "github.com/pokatomnik/gomem/internal/controllers/cli/remember"
@@ -28,6 +31,7 @@ import (
 	rKVPackage "github.com/pokatomnik/gomem/internal/repositories/kv"
 	ucConsumePackage "github.com/pokatomnik/gomem/internal/use_cases/consume"
 	ucGetFactPackage "github.com/pokatomnik/gomem/internal/use_cases/getfact"
+	ucInitPackage "github.com/pokatomnik/gomem/internal/use_cases/init"
 	ucMCPHTTPPackage "github.com/pokatomnik/gomem/internal/use_cases/mcphttp"
 	ucMCPStdIOPackage "github.com/pokatomnik/gomem/internal/use_cases/mcpstdio"
 	ucRecallPackage "github.com/pokatomnik/gomem/internal/use_cases/recall"
@@ -36,9 +40,22 @@ import (
 )
 
 func scaffold() (*cobra.Command, error) {
-	cfg, err := config.InitConfig()
+	configPath, err := config.ConfigPath()
 	if err != nil {
 		return nil, err
+	}
+
+	aInput := aInputPackage.New(os.Stdin)
+	init := ucInitPackage.New(configPath, config.Default().String(), aInput)
+
+	cfg, err := config.GetConfig()
+	if err != nil {
+		initialized, err := init.Dump()
+		if err != nil {
+			log.Fatalf("Failed to initialize configuration: %s\n", err.Error())
+		} else if initialized {
+			log.Fatal(colors.Primary().Sprintf("Initial configuration dumped. Please set It up: %s\n", configPath))
+		}
 	}
 
 	client := http.DefaultClient
@@ -51,7 +68,6 @@ func scaffold() (*cobra.Command, error) {
 	db := rKVPackage.New(cfg, path.Join(userHome, ".aimem"))
 
 	aOllama := aOllamaPackage.New(client, cfg)
-	aInput := aInputPackage.New(os.Stdin)
 
 	rec := ucRecallPackage.New(aOllama, db, cfg)
 	fac := ucGetFactPackage.New(db)
@@ -87,7 +103,9 @@ func scaffold() (*cobra.Command, error) {
 
 	web := cmdWebCLIPackage.NewWebController(webController)
 
-	root := cmdRootPackage.RootCmd(remember, recall, getFact, removeFact, consume, mcp, web)
+	cmdInitPackage := cmdInitPackage.GetInitCmd(init)
+
+	root := cmdRootPackage.RootCmd(remember, recall, getFact, removeFact, consume, mcp, web, cmdInitPackage)
 
 	return root, nil
 }

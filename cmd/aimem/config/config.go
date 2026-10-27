@@ -2,33 +2,38 @@ package config
 
 import (
 	_ "embed"
+
+	"github.com/pelletier/go-toml/v2"
 )
 
 type Config struct {
-	// e.g. 127.0.0.1:11434
-	OllamaHost string `toml:"ollamaHost"`
+	OllamaHost          string  `toml:"ollamaHost" comment:"Ollama Host, e.g. http://127.0.0.1:11434"`
+	EmbeddingModel      string  `toml:"embeddingModel" comment:"Ollama embedding model, do not change It to keep your database working, example: embeddinggemma-2:740m"`
+	SummarizationModel  string  `toml:"summarizationModel" comment:"Ollama summarization model ID, example: gemma4:e2b"`
+	TopK                int     `toml:"topK" comment:"How many search results to show, example: 5"`
+	SimilarityThreshold float32 `toml:"similarityThreshold" comment:"The threshold beyond which a fact is considered relevant, example: 0.5. Min: 0, max: 1, greater or less values truncated"` // Embedding dimensions
+	Dimensions          uint32  `toml:"dimensions" comment:"Vector database dimensions. Make sure your embedding model supports It"`
+	MCPHTTPHost         string  `toml:"mcpHttpHost" comment:"MCP HTTP host to listen on. Default is 127.0.0.1:7777"`
+	WebHTTPHost         string  `toml:"webHttpHost" comment:"Web search engine to listen on. Default is 127.0.0.1:8888"`
+}
 
-	// e.g. "nomic-embed-text:latest"
-	EmbeddingModel string `toml:"embeddingModel"`
+func (c Config) String() string {
+	toml, _ := toml.Marshal(c)
 
-	// e.g. "gemma4:e2b"
-	SummarizationModel string `toml:"summarizationModel"`
+	return string(toml)
+}
 
-	// How many results to get max
-	TopK int `toml:"topK"`
-
-	// The threshold beyond which a fact is considered relevant
-	// min: 0, max: 1
-	SimilarityThreshold float32 `toml:"similarityThreshold"`
-
-	// Embedding dimensions
-	Dimensions uint32 `toml:"dimensions"`
-
-	// e.g. 127.0.0.1:7777
-	MCPHTTPHost string `toml:"mcpHttpHost"`
-
-	// e.g. 127.0.0.1:8888
-	WebHTTPHost string `toml:"webHttpHost"`
+func Default() Config {
+	return Config{
+		TopK:                5,
+		SimilarityThreshold: 0.5,
+		Dimensions:          768,
+		OllamaHost:          "http://localhost:11434",
+		EmbeddingModel:      "embeddinggemma-2:740m",
+		SummarizationModel:  "gemma4:e2b",
+		MCPHTTPHost:         "127.0.0.1:7777",
+		WebHTTPHost:         "127.0.0.1:8888",
+	}
 }
 
 func (c *Config) GetDimensions() uint32 {

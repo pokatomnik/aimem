@@ -5,11 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/pokatomnik/gomem/cmd/aimem/config"
 )
 
 func main() {
@@ -17,7 +14,6 @@ func main() {
 
 	root, err := scaffold()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, config.Example())
 		log.Fatal(err)
 	}
 
