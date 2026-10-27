@@ -29,6 +29,7 @@ import (
 	cmdWebCLIPackage "github.com/pokatomnik/gomem/internal/controllers/cli/web"
 	cmdWebPackage "github.com/pokatomnik/gomem/internal/controllers/web"
 	rKVPackage "github.com/pokatomnik/gomem/internal/repositories/kv"
+	rQdrantPackage "github.com/pokatomnik/gomem/internal/repositories/qdrant"
 	ucConsumePackage "github.com/pokatomnik/gomem/internal/use_cases/consume"
 	ucGetFactPackage "github.com/pokatomnik/gomem/internal/use_cases/getfact"
 	ucInitPackage "github.com/pokatomnik/gomem/internal/use_cases/init"
@@ -46,7 +47,7 @@ func scaffold() (*cobra.Command, error) {
 	}
 
 	aInput := aInputPackage.New(os.Stdin)
-	init := ucInitPackage.New(configPath, config.Default().String(), aInput)
+	init := ucInitPackage.New(configPath, config.DefaultConfig().String(), aInput)
 
 	cfg, err := config.GetConfig()
 	if err != nil {
@@ -65,14 +66,21 @@ func scaffold() (*cobra.Command, error) {
 		return nil, err
 	}
 
-	db := rKVPackage.New(cfg, path.Join(userHome, ".aimem"))
+	embeddedDB := rKVPackage.New(cfg, path.Join(userHome, ".aimem"))
+	qdrantDB := rQdrantPackage.New(cfg, client)
 
 	aOllama := aOllamaPackage.New(client, cfg)
 
-	rec := ucRecallPackage.New(aOllama, db, cfg)
-	fac := ucGetFactPackage.New(db)
-	rem := ucRememberPackage.New(aOllama, db)
-	del := ucRemoveFactPackage.New(db)
+	rec := ucRecallPackage.New(aOllama, embeddedDB, cfg)
+	fac := ucGetFactPackage.New(embeddedDB)
+	rem := ucRememberPackage.New(aOllama, embeddedDB)
+	del := ucRemoveFactPackage.New(embeddedDB)
+	if cfg.IsQdrantConfigured() {
+		rec = ucRecallPackage.New(aOllama, qdrantDB, cfg)
+		fac = ucGetFactPackage.New(qdrantDB)
+		rem = ucRememberPackage.New(aOllama, qdrantDB)
+		del = ucRemoveFactPackage.New(qdrantDB)
+	}
 
 	mcpDeps := mcp.MCPDeps{
 		Remember:   rem,
@@ -84,7 +92,11 @@ func scaffold() (*cobra.Command, error) {
 	aMCPHTTP := aMCPHTTPPackage.New(mcpDeps)
 	aMCPStdIO := aMCPStdIOPackage.New(mcpDeps)
 
-	con := ucConsumePackage.New(aOllama, db, aInput)
+	con := ucConsumePackage.New(aOllama, embeddedDB, aInput)
+	if cfg.IsQdrantConfigured() {
+		con = ucConsumePackage.New(aOllama, qdrantDB, aInput)
+	}
+
 	mcphttp := ucMCPHTTPPackage.New(aMCPHTTP)
 	mcpstdio := ucMCPStdIOPackage.New(aMCPStdIO)
 
