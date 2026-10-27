@@ -1,34 +1,41 @@
 # aimem
 
 `aimem` is a small command-line long-term memory for AI assistants. It stores
-facts locally, generates embeddings through [Ollama](https://ollama.com), and
-retrieves the most relevant facts for a question using a local vector index
-([xvec](https://github.com/gorse-io/xvec), HNSW with cosine similarity).
+facts, generates embeddings through [Ollama](https://ollama.com), and retrieves
+the most relevant facts for a question by meaning, using cosine similarity.
 
-Everything runs on your machine: Ollama does the embedding and summarization,
-and the vector database lives in `~/.aimem`. There are no external services and
-no API keys.
+Two storage backends are available and the config chooses between them:
 
-A `docker-compose.yaml` is included to run [Qdrant](https://qdrant.tech) locally
-as a drop-in replacement for the embedded index once `kv` is ported to it; see
-[Start the vector database](#3-start-the-vector-database-qdrant).
+- **Embedded** (default) — [xvec](https://github.com/gorse-io/xvec), an HNSW
+  index kept in `~/.aimem`. No extra service, no API key.
+- **Qdrant** — a Qdrant instance over HTTP, for running the memory outside one
+  machine. Configure `[qdrant] host` to switch; see
+  [Start the vector database](#3-start-the-vector-database-qdrant).
+
+Ollama does the embedding and summarization in both cases. With the embedded
+backend everything runs on your machine.
 
 ## Features
 
+- `init` — write a default configuration file.
 - `remember` — save a fact; it is summarized and embedded.
 - `recall` — find facts semantically similar to a question.
 - `fact` — print a fact by its ID.
 - `remove` — delete a fact by its ID.
 - `import` — bulk-import facts from JSON Lines read from stdin.
 - `mcp` — run the MCP server over `stdio` or `http` for use by AI assistants.
-- `web` — serve the same memory over a small HTTP API.
+- `web` — serve the same memory over an HTTP API and a browser UI.
 
 ## Requirements
 
 - Go 1.27.1 or newer (see `go.mod`).
+- [Node.js](https://nodejs.org) and `npm`, because the web UI is built from
+  `internal/controllers/web/ui` and embedded into the binary with `go:embed`.
+  `make build` and `make test` both run `npm ci` and `vite build` first, so a
+  bare `go build ./...` on a fresh clone fails until `make ui-build` has run.
 - [Ollama](https://ollama.com) running locally or reachable over HTTP.
 - [Docker](https://docs.docker.com/get-docker/) with the Compose plugin, only if
-  you want the bundled Qdrant service.
+  you want to use the bundled Qdrant service.
 - An embedding model and a text-generation model pulled in Ollama, for example:
 
   ```sh
@@ -64,16 +71,16 @@ Make sure the install directory is in your `PATH`.
 ### 2. Create the configuration
 
 The configuration file is required and must be located at
-`~/.config/aimem/config.toml`. The template lives in the repository at
-`cmd/aimem/config/config.toml.example`:
+`~/.config/aimem/config.toml`. There is no template file in the repository: the
+binary generates the config from the built-in defaults, comments included.
 
 ```sh
-mkdir -p ~/.config/aimem
-cp cmd/aimem/config/config.toml.example ~/.config/aimem/config.toml
+aimem init                    # writes the file
 ```
 
-If the file is missing, `aimem` prints the template and the expected path to
-stderr before it exits.
+If the file is missing, `aimem` writes it, prints where it landed, and exits —
+no other command works until the file exists. `aimem init` does the same thing on
+demand; if a file is already there it asks before overwriting.
 
 Then adjust it:
 
@@ -101,8 +108,13 @@ dimensions = 768
 # Host the MCP HTTP transport listens on
 mcpHttpHost = "127.0.0.1:7777"
 
-# Host the web API listens on
+# Host the web API and UI listen on
 webHttpHost = "127.0.0.1:8888"
+
+# Optional. Setting `host` switches storage from the embedded index to Qdrant.
+[qdrant]
+host = ""          # e.g. "http://127.0.0.1:6333"
+apiKey = ""        # leave empty when Qdrant has no authorization
 ```
 
 | Key                   | Description                                                                                                                                  |
@@ -114,14 +126,21 @@ webHttpHost = "127.0.0.1:8888"
 | `similarityThreshold` | Minimum cosine similarity for a fact to be returned; `0` matches everything, `1` requires an exact match. Values outside `0..1` are clamped. |
 | `dimensions`          | Vector size; it is fixed in the database schema when it is created.                                                                          |
 | `mcpHttpHost`         | Address for the MCP HTTP transport. Defaults to `127.0.0.1:7777`.                                                                            |
-| `webHttpHost`         | Address for the `web` HTTP API. Defaults to `127.0.0.1:8888`.                                                                                |
+| `webHttpHost`         | Address for the `web` HTTP API and UI. Defaults to `127.0.0.1:8888`.                                                                         |
+| `[qdrant].host`       | Qdrant base URL. **Empty means the embedded backend**; any non-empty value switches to Qdrant.                                               |
+| `[qdrant].apiKey`     | Sent as the `api-key` header. Leave empty when the server has no key — the header is then omitted entirely.                                  |
+
+Unknown keys are ignored silently, so a typo leaves the field at its zero value
+(`topK = 0` returns nothing, `similarityThreshold = 0` matches everything) with
+no error. Compare your file against the table when something behaves oddly.
 
 > `recall` applies `topK` first and then filters by `similarityThreshold`, so a
 > query can return fewer than `topK` results, or none at all, even when related
 > facts exist.
 
 > `dimensions` must match the number of values returned by the embedding model.
-> If you change it after the database has been created, recreate `~/.aimem`.
+> If you change it after the database has been created, recreate it — delete
+> `~/.aimem` for the embedded backend, or drop the Qdrant collection.
 
 ### 3. Start the vector database (Qdrant)
 
@@ -202,12 +221,48 @@ module's schema, so the repository keeps its contract (`AddFact`, `GetFactByID`,
 | Payload keys | `summary`, `fact`, `created_at` (all strings)                                |
 
 Two details differ from xvec and are handled by the adapter, not by this compose
-file. Qdrant accepts a point ID only as an unsigned integer or a UUID, so the hex
-digest is shaped into a UUID by keeping its first 32 hex characters; the UUID
-parser Qdrant uses does not check the version or variant bits, so an arbitrary
-prefix is accepted and the ID stays deterministic. And Qdrant's cosine score is
-already a similarity, so the `1 - result.Score` inversion in `GetFactsList` must
-not be applied on top of it.
+file. The point ID format is one of them — see
+[How a fact gets its ID](#how-a-fact-gets-its-id). The other is the score: Qdrant's
+cosine score is already a similarity, so the `1 - result.Score` inversion that
+`kv` applies must not be applied on top of it.
+
+#### How a fact gets its ID
+
+A fact's ID is derived from its text, never assigned separately. The text is
+SHA-256 hashed, and everything else follows from that digest — which is what makes
+the ID and the content unable to disagree.
+
+The two backends need different ID formats, so the digest is shaped differently
+for each:
+
+| Backend  | Stored ID                             | Example prefix                         |
+| -------- | ------------------------------------- | -------------------------------------- |
+| Embedded | the full 64-character hex digest      | `4a44dc15364204a80fe80e9039455cc1...`  |
+| Qdrant   | the first 32 hex characters as a UUID | `4a44dc15-3642-04a8-0fe8-0e9039455cc1` |
+
+**Why the difference?** The embedded backend accepts any string as a primary key,
+so it stores the digest verbatim. Qdrant accepts a point ID only as an unsigned
+integer or a UUID, so the digest cannot be used as-is. Keeping the first 32 hex
+characters — 128 bits of the digest — is enough to stay collision-free in
+practice, and the ID remains deterministic: the same text always yields the same
+point.
+
+That truncation is safe because the UUID parser Qdrant uses does not validate the
+version or variant bits. The result is not a well-formed v4 UUID — it looks like
+one and is accepted as one, which is all Qdrant requires.
+
+Consequences worth knowing:
+
+- **IDs differ between backends.** The same fact stored in `~/.aimem` and in
+  Qdrant has different IDs (`4a44dc…` vs `4a44dc15-…`). Both backends accept
+  either form on lookup: a full digest is reduced to its UUID form, so data
+  carried over from the embedded store resolves to the same point.
+- **Prefer full digests when moving data.** A 64-character digest is unambiguous
+  and each backend maps it to its own form. A short prefix is only meaningful in
+  the backend that printed it.
+- **The 128-bit prefix is the identity in Qdrant.** Two facts whose digests share
+  the first 32 hex characters would collide. That needs a deliberate SHA-256
+  prefix collision, which is not a practical concern for memory data.
 
 #### Records are immutable
 
@@ -246,15 +301,17 @@ A process-local lock would not help: a second instance of `aimem` is a separate
 process and would not share the lock, so it would only hide the window. Writes are
 far rarer than reads, so the window is accepted rather than patched.
 
-> The application still uses the embedded xvec index; this compose file only
-> stands up the database. Until `internal/repositories/kv` is ported to Qdrant,
-> `aimem` does not connect to it and keeps storing data in `~/.aimem`. The Qdrant
-> repository is available at `internal/repositories/qdrant` and is already wired
-> to the use cases' interfaces.
+> Both backends are wired. `scaffold` builds the embedded repository and the
+> Qdrant one, then selects Qdrant when `[qdrant] host` is non-empty. The compose
+> file only stands up the server; pointing the config at it is what switches the
+> storage.
 
 ## Usage
 
 ```sh
+# Write a default configuration file (prompts before overwriting).
+aimem init
+
 # Save a fact. The summary is printed back.
 aimem remember "The production database is hosted in Frankfurt"
 
@@ -288,28 +345,48 @@ usage instructions are embedded from
 `internal/adapters/servers/mcp/INSTRUCTIONS.md` and sent to the client on
 initialization.
 
-### Web API
+### Web API and UI
 
-`aimem web` exposes the same memory over HTTP, listening on `webHttpHost`
-(`127.0.0.1:8888` by default):
+`aimem web` serves the HTTP API and the browser UI from one port, listening on
+`webHttpHost` (`127.0.0.1:8888` by default):
 
 ```sh
 aimem web
 ```
 
-| Method | Path                    | Body                       | Returns                       |
-| ------ | ----------------------- | -------------------------- | ----------------------------- |
-| `POST` | `/api/v1/fact`          | `{"value":{"fact":"..."}}` | `{"summary":"..."}`           |
-| `GET`  | `/api/v1/fact/{factID}` | —                          | `{"value":{...full fact...}}` |
-| `POST` | `/api/v1/search`        | `{"query":"..."}`          | `{"value":{"found":[...]}}`   |
+Open `http://127.0.0.1:8888` for the UI — search, add, read and delete facts. It
+is a single-page app using hash routing, embedded into the binary at build time.
+
+The API contract lives in `internal/controllers/web/openapi.yaml`.
+
+| Method   | Path                    | Body                       | Returns                       |
+| -------- | ----------------------- | -------------------------- | ----------------------------- |
+| `POST`   | `/api/v1/fact`          | `{"value":{"fact":"..."}}` | `{"value":{"summary":"..."}}` |
+| `GET`    | `/api/v1/fact/{factID}` | —                          | `{"value":{...full fact...}}` |
+| `DELETE` | `/api/v1/fact/{factID}` | —                          | `{"value":{}}`                |
+| `POST`   | `/api/v1/search`        | `{"query":"..."}`          | `{"value":{"found":[...]}}`   |
+
+Every success body is wrapped in `value`, including `POST /api/v1/fact`, whose
+reply is `{"value":{"summary":"..."}}` — not a bare `{"summary":"..."}`.
 
 `search` runs the same semantic lookup as `recall`, so `topK` and
 `similarityThreshold` apply and each item carries `id`, `createdAt`, and
 `summary` — never the full text; use `GET /api/v1/fact/{factID}` for that.
+
 Errors come back as `{"error":"<CODE>","message":"..."}`; the status is part of
-the mapping: `400` for a malformed request, `404` for an unknown route or a
-missing fact, `409` when the fact already exists, `422` when Ollama returns no
-usable embedding, `502` when Ollama itself fails, and `500` for anything else.
+the mapping:
+
+| Status | When                                                                      |
+| ------ | ------------------------------------------------------------------------- |
+| `400`  | Malformed request — bad JSON, a body failing validation, a short `query`. |
+| `404`  | Unknown route, or a fact that does not exist (`GET` and `DELETE` alike).  |
+| `409`  | The fact already exists (`ALREADY_HAS_FACT`).                             |
+| `422`  | Ollama returned no usable embedding.                                      |
+| `502`  | Ollama itself failed.                                                     |
+| `500`  | Anything else, including a storage conversion error.                      |
+
+Any path under `/api/` is answered as JSON, so a version typo like
+`/api/v2/search` returns a JSON 404 instead of the UI's HTML.
 
 ### Import format
 
@@ -326,24 +403,50 @@ sure the input contains valid JSON on every line.
 
 ## Data location
 
-All data is stored in `~/.aimem`:
+With the **embedded** backend all data is stored in `~/.aimem`:
 
 - the xvec collection with embeddings and metadata;
 - `plain.jsonl`, an append-only log of saved facts.
 
 `plain.jsonl` records additions only: removing a fact deletes it from the
 collection but leaves the line in the log. Delete the whole directory to start
-from scratch. Stored records are immutable on both backends — see
+from scratch.
+
+With **Qdrant** the facts live in the collection described above and nothing is
+written to `~/.aimem`. Note that `plain.jsonl` is a feature of the embedded
+backend only — the Qdrant repository does not append to it. To reset, drop the
+collection; `docker compose down -v` wipes the bundled one entirely.
+
+Stored records are immutable on both backends — see
 [Records are immutable](#records-are-immutable).
 
 ## Development
 
 ```sh
-make build    # build build/aimem for the current platform
-make test     # run go test ./...
-make generate # regenerate the ogen code in internal/controllers/web/server
-make clean    # remove the build directory
+make build        # ui-build, then build/aimem for the current platform
+make test         # ui-build, then go test ./...
+make generate     # regenerate the ogen code in internal/controllers/web/server
+make clean        # remove build/ and the UI dist
+
+make ui-install   # npm ci (only when package.json or the lockfile changes)
+make ui-build     # vite build into internal/controllers/web/ui/dist
+make ui-test      # vitest run
+make ui-lint      # eslint, zero warnings
+make ui-typecheck # tsc --noEmit
 ```
+
+The UI is embedded with `go:embed all:ui/dist`, so it must exist before the Go
+compiler runs — that is why `build` and `test` depend on `ui-build`.
+
+After changing `internal/controllers/web/openapi.yaml`, regenerate both sides:
+
+```sh
+make generate                       # ogen, for the Go server
+cd internal/controllers/web/ui && npm run api:generate   # openapi-typescript
+```
+
+The generated `schema.d.ts` is committed, so a contract change that skips the
+second step leaves the client typed against the old shapes.
 
 Run `aimem` without arguments (or with `--help`) to list the available
 commands.

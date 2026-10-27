@@ -41,12 +41,17 @@ Never finish a turn in which the user corrected you without step 8.
 
 Text that reaches a model, and must stay in sync with code:
 
-| File                                               | Embedded in                                              | Sent to                                | Keep in sync with                                                                       |
-| -------------------------------------------------- | -------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------- |
-| `internal/adapters/servers/mcp/INSTRUCTIONS.md`    | `internal/adapters/servers/mcp/server.go` (`//go:embed`) | the MCP client, as server instructions | tool names, inputs, outputs, and behavior in `internal/adapters/servers/mcp/tools/*.go` |
-| `internal/adapters/ollama/SUMMARIZATION_SYSTEM.md` | `internal/adapters/ollama/summarization.go`              | the summarization model                | the prompt built in `Summarize(...)`, `NumPredict`, what `remember`/`import` store      |
-| Tool descriptions and `jsonschema` tags            | each `tools/*.go` file                                   | the model, via `tools/list`            | the handler's actual inputs and outputs                                                 |
-| `cmd/aimem/config/config.toml.example`             | `cmd/aimem/config/example.go` (`//go:embed`)             | the user, on setup                     | `cmd/aimem/config/config.go` field names and defaults                                   |
+| File                                               | Embedded in                                              | Sent to                                 | Keep in sync with                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------- |
+| `internal/adapters/servers/mcp/INSTRUCTIONS.md`    | `internal/adapters/servers/mcp/server.go` (`//go:embed`) | the MCP client, as server instructions  | tool names, inputs, outputs, and behavior in `internal/adapters/servers/mcp/tools/*.go` |
+| `internal/adapters/ollama/SUMMARIZATION_SYSTEM.md` | `internal/adapters/ollama/summarization.go`              | the summarization model                 | the prompt built in `Summarize(...)`, `NumPredict`, what `remember`/`import` store      |
+| Tool descriptions and `jsonschema` tags            | each `tools/*.go` file                                   | the model, via `tools/list`             | the handler's actual inputs and outputs                                                 |
+| `cmd/aimem/config/config.go` `comment` tags        | `config.DefaultConfig().String()`                        | the user, on first run and `aimem init` | `Config` field names and defaults                                                       |
+
+There is **no** `config.toml.example` or `example.go` in this repository. The
+template is generated at run time from `DefaultConfig()` via `toml.Marshal`, and
+the `comment` tags on `Config` become the file's comments — so a wrong comment
+ships to every user, and a missing one leaves a bare key. Keep them accurate.
 
 `AGENTS.md` and `README.md` do not reach a model, but must match the code and the CLI.
 
@@ -67,7 +72,7 @@ Check these before trusting any sentence in the docs. Each one has already been 
 
 ### Config
 
-- **Compare `config.go` with `config.toml.example` key by key.** Names must match exactly; a typo is silently ignored by `toml.Unmarshal`, so the field keeps its zero value and nothing fails. Verify by unmarshalling the example into `Config` and printing the result.
+- **Read the generated template, not a file.** `config.go` is the only source; there is no `.example` to compare against. Reproduce the template with a throwaway test that prints `config.DefaultConfig().String()`, and check every key against `GetX()` and the code that consumes it. A `toml` tag that does not match the field name the user writes is silently ignored by `toml.Unmarshal` — the field keeps its zero value and nothing fails.
 - **Check defaults.** A missing key means zero: `SimilarityThreshold = 0` accepts everything, `TopK = 0` returns nothing. Decide whether the example should show a working value.
 
 ### Recall and the similarity threshold
@@ -85,12 +90,22 @@ Check these before trusting any sentence in the docs. Each one has already been 
 
 ### CLI
 
-- **Read `Use:` in `internal/controllers/*/controller.go`** and compare with the commands listed in `README.md`. The CLI has commands the README does not mention (`http`, `mcp`, `stdio`, `remove`) and README sections that may describe removed behavior.
+- **Read `Use:` in `internal/controllers/cli/*/controller.go`** and compare with the commands listed in `README.md`. The CLI has commands the README does not mention (`init`, `import`, `mcp {stdio,http}`, `web`) and README sections that may describe removed behavior. Note that `import` is declared as `Use: "import"` in the `consume` package.
 - **Check flags and defaults** against `cmd/aimem/scaffold.go` and the controllers.
 
 ### Storage
 
-- **`plain.jsonl` is a mirror.** Any operation that writes or removes a fact must handle both it and the xvec collection; text claiming consistency is only true if the code does both.
+- **Two backends, one contract.** `kv` (embedded, `~/.aimem`) and `qdrant` (over
+  HTTP) both satisfy the use cases' interfaces; `scaffold` selects Qdrant when
+  `[qdrant] host` is non-empty. Text describing "the" database must say which one
+  it means, or cover both.
+- **`plain.jsonl` is written by `kv` only**, from `AddFact` alone. It is an
+  append-only log of additions: `RemoveFactByID` does not rewrite it, and the
+  Qdrant backend never touches it. Do not describe it as a mirror of the store.
+- **The score direction differs.** `kv` converts xvec's cosine _distance_ with
+  `1 - Score`; Qdrant already reports a similarity and must not be inverted.
+  A doc sentence about `similarityThreshold` is true for both only if it stays
+  at the level of "0 matches everything, 1 requires an exact match".
 
 ## Updating the texts
 
