@@ -27,7 +27,7 @@ func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, err
 		return fact.FactFullView{}, err
 	}
 
-	if len(result) == 0 {
+	if len(result) == 0 || result[0] == nil {
 		return fact.FactFullView{}, apperrors.ErrFactDoesNotExist
 	}
 

@@ -4,13 +4,12 @@ package kv
 // conversion (xvec reports cosine as a distance, 0 = identical) nor the
 // threshold and topK handling is covered.
 //
-// Do not cover it by driving a real xvec collection in t.TempDir(), the way
-// the previous test did: that exercises the library, which is already tested
-// upstream, and it breaks the hermetic-test rules (no filesystem, no I/O).
+// The seam now exists: `collection` in kv.go is satisfied by xvec.Collection and
+// by a fake, and getfact_test.go shows the pattern (newFakeKV). Cover the logic
+// of this package through it instead of opening a real xvec collection, which
+// would exercise the library rather than our code and break the hermetic-test
+// rules (no filesystem, no I/O).
 //
-// Cover the logic of this package instead: extract the collection behind a
-// narrow unexported interface next to its consumer, fake it, and feed it
-// scores and fields directly. Then assert on our code only — the
-// "similarity := 1 - result.Score" inversion, filtering by
-// similarityThreshold, topK as an upper bound applied before filtering, and
-// ErrDBConvertError when a projected field is not a string.
+// Assert on our code only — the "similarity := 1 - result.Score" inversion,
+// filtering by similarityThreshold, topK as an upper bound applied before
+// filtering, and ErrDBConvertError when a projected field is not a string.
