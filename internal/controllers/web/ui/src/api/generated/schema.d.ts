@@ -170,7 +170,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["factAddedOK"];
+                    "application/json": {
+                        value: components["schemas"]["factAddedOK"];
+                    };
                 };
             };
             /** @description Cannot add this fact */

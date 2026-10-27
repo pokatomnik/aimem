@@ -29,7 +29,7 @@ func decodeAddFactResponse(resp *http.Response) (res AddFactRes, _ error) {
 			}
 			d := jx.DecodeBytes(buf)
 
-			var response FactAddedOK
+			var response AddFactOK
 			if err := func() error {
 				if err := response.Decode(d); err != nil {
 					return err

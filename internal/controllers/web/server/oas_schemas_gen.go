@@ -8,6 +8,22 @@ import (
 	"github.com/go-faster/errors"
 )
 
+type AddFactOK struct {
+	Value FactAddedOK `json:"value"`
+}
+
+// GetValue returns the value of Value.
+func (s *AddFactOK) GetValue() FactAddedOK {
+	return s.Value
+}
+
+// SetValue sets the value of Value.
+func (s *AddFactOK) SetValue(val FactAddedOK) {
+	s.Value = val
+}
+
+func (*AddFactOK) addFactRes() {}
+
 // Ref: #/components/schemas/addFactParams
 type AddFactParams struct {
 	// Fact to remember.
@@ -269,8 +285,6 @@ func (s *FactAddedOK) GetSummary() string {
 func (s *FactAddedOK) SetSummary(val string) {
 	s.Summary = val
 }
-
-func (*FactAddedOK) addFactRes() {}
 
 type GetFactByIDOK struct {
 	Value Fact `json:"value"`

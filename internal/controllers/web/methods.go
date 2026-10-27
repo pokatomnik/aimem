@@ -20,8 +20,10 @@ func (m *Methods) AddFact(ctx context.Context, req *server.AddFactReq) (server.A
 		return nil, err
 	}
 
-	return &server.FactAddedOK{
-		Summary: summary,
+	return &server.AddFactOK{
+		Value: server.FactAddedOK{
+			Summary: summary,
+		},
 	}, nil
 }
 

@@ -159,9 +159,9 @@ describe("getFact", () => {
 });
 
 describe("addFact", () => {
-  it("sends the double-nested body the contract requires", async () => {
+  it("sends the double-nested body and unwraps the {value} envelope", async () => {
     const { calls, fetchImpl } = createRecordingFetch(() =>
-      jsonResponse(200, { summary: "short" }),
+      jsonResponse(200, { value: { summary: "short" } }),
     );
 
     const api = createFactApi({ baseUrl: BASE_URL, fetchImpl });

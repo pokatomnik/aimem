@@ -12,7 +12,7 @@ export type FactListItem = components["schemas"]["searchResultItem"];
 
 type SearchResponse = { readonly value: components["schemas"]["searchResult"] };
 type FactResponse = { readonly value: Fact };
-type AddFactResponse = components["schemas"]["factAddedOK"];
+type AddFactResponse = { readonly value: components["schemas"]["factAddedOK"] };
 
 /** Signature of a fetch implementation; injectable so tests never touch the network. */
 export type FetchLike = (input: Request) => Promise<Response>;
@@ -99,7 +99,7 @@ export const createFactApi = (config: FactApiConfig = {}): FactApi => {
             ...withSignal(options?.signal),
           }),
         );
-        return body.summary;
+        return body.value.summary;
       }),
 
     deleteFact: async (id, options) =>

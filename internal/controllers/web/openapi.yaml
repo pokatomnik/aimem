@@ -36,7 +36,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/factAddedOK"
+                type: object
+                additionalProperties: false
+                required:
+                  - value
+                properties:
+                  value:
+                    $ref: "#/components/schemas/factAddedOK"
         "400":
           description: Cannot add this fact
           content:

@@ -14,7 +14,7 @@ import (
 
 func encodeAddFactResponse(response AddFactRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *FactAddedOK:
+	case *AddFactOK:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(200)
 
