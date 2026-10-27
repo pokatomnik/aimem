@@ -1,72 +1,75 @@
-# Qdrant для aimem.
+# Qdrant for aimem.
 #
-# Поднимает только векторную базу: приложение (`aimem`) запускается на хосте
-# и подключается к ней по HTTP (REST, порт 6333) или gRPC (порт 6334).
+# Starts the vector database only: the application (`aimem`) runs on the host
+# and connects to it over HTTP (REST, port 6333) or gRPC (port 6334).
 #
-#   cp .env.example .env      # опционально: переопределить порты/образ
-#   docker compose up -d      # поднять
-#   docker compose down       # остановить (данные остаются в volumes)
-#   docker compose down -v    # остановить и удалить данные
+#   cp .env.example .env      # optional: override ports or the image tag
+#   docker compose up -d      # start
+#   docker compose down       # stop (data stays in the volumes)
+#   docker compose down -v    # stop and delete the data
 #
-# Переменные читаются из `.env` (Compose берёт его из этого каталога сам) или
-# из окружения. Значения после `:-` — дефолты Qdrant, поэтому без `.env`
-# сервис стартует ровно с настройками по умолчанию.
+# Variables are read from `.env` (Compose picks it up from this directory on its
+# own) or from the environment. The values after `:-` are Qdrant's defaults, so
+# without a `.env` the service starts with exactly the default settings.
 
 services:
   qdrant:
     image: qdrant/qdrant:${QDRANT_VERSION:-v1.15.4}
     restart: unless-stopped
 
-    # Публикуем только на loopback: у Qdrant по умолчанию нет аутентификации,
-    # и выставлять его в сеть без ключа не стоит. Если база нужна из других
-    # контейнеров или с другой машины — задайте QDRANT_HTTP_HOST/GRPC_HOST как
-    # 0.0.0.0 и обязательно включите QDRANT_API_KEY (см. блок ниже).
+    # Published on loopback only: Qdrant has no authentication by default, and
+    # exposing it on the network without a key is not worth the risk. If the
+    # database has to be reachable from other containers or another machine, set
+    # QDRANT_HTTP_HOST/GRPC_HOST to 0.0.0.0 and turn authentication on at the
+    # same time (see the block below).
     ports:
       - "${QDRANT_HTTP_HOST:-127.0.0.1}:${QDRANT_HTTP_PORT:-6333}:6333"
       - "${QDRANT_GRPC_HOST:-127.0.0.1}:${QDRANT_GRPC_PORT:-6334}:6334"
 
-    # QDRANT__A__B — это вложенный ключ a.b из config.yaml.
-    # Файла конфигурации здесь нет: всё задаётся переменными среды.
+    # QDRANT__A__B is the nested key a.b from config.yaml.
+    # There is no config file here: everything is set through environment
+    # variables.
     environment:
-      # Порты внутри контейнера. Менять не нужно — наружу они публикуются выше.
+      # Ports inside the container. No need to change them — they are published
+      # above.
       QDRANT__SERVICE__HTTP_PORT: 6333
       QDRANT__SERVICE__GRPC_PORT: 6334
 
-      # Пути совпадают с дефолтами образа (WORKDIR = /qdrant), но прописаны
-      # явно, чтобы было видно, к каким каталогам примонтированы volumes.
+      # These paths match the image defaults (WORKDIR = /qdrant) but are spelled
+      # out so it is visible which directories the volumes are mounted into.
       QDRANT__STORAGE__STORAGE_PATH: /qdrant/storage
       QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/snapshots
 
-      # true — payload и его индексы лежат на диске (дефолт Qdrant), false —
-      # держать их в памяти. Для локальной памяти на тысячи фактов память
-      # быстрее; для миллионов точек оставьте true.
+      # true — the payload and its indexes live on disk (Qdrant's default),
+      # false — keep them in memory. For a local memory of a few thousand facts
+      # memory is faster; for millions of points keep true.
       QDRANT__STORAGE__ON_DISK_PAYLOAD: ${QDRANT_ON_DISK_PAYLOAD:-true}
 
       # TRACE, DEBUG, INFO, WARN, ERROR.
       QDRANT__LOG_LEVEL: ${QDRANT_LOG_LEVEL:-INFO}
 
-      # Дефолт Qdrant — false, то есть телеметрия отправляется. Включите,
-      # чтобы её выключить.
+      # Qdrant's default is false, meaning telemetry is sent. Set it to true to
+      # turn telemetry off.
       QDRANT__TELEMETRY_DISABLED: ${QDRANT_TELEMETRY_DISABLED:-false}
 
-      # Аутентификация. НЕ РАСКОММЕНТИРУЙТЕ с пустым значением: Qdrant читает
-      # api_key как Option<String>, а config-rs не отбрасывает пустые
-      # переменные, поэтому пустая строка включает проверку ключа с пустым
-      # паролем, и приложение перестаёт подключаться (healthz и /readyz при
-      # этом остаются открытыми). Поэтому строки закомментированы, а не заданы
-      # через `${QDRANT_API_KEY:-}`. Чтобы включить — задайте ключ в `.env`,
-      # раскомментируйте две строки ниже и перезапустите compose.
+      # Authentication. DO NOT UNCOMMENT WITH AN EMPTY VALUE: Qdrant reads
+      # api_key as Option<String>, and config-rs does not drop empty variables,
+      # so an empty string enables key checking with a blank password and the
+      # application can no longer connect (healthz and /readyz stay reachable in
+      # that state). That is why the lines are commented out rather than set
+      # through `${QDRANT_API_KEY:-}`. To enable, set the key in `.env`,
+      # uncomment the two lines below, and restart compose.
       # QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?set QDRANT_API_KEY in .env}
       # QDRANT__SERVICE__READ_ONLY_API_KEY: ${QDRANT_READ_ONLY_API_KEY:?set QDRANT_READ_ONLY_API_KEY in .env}
 
     volumes:
-      # Именованные volumes: данные переживают `down`. `down -v` их удаляет.
+      # Named volumes: the data survives `down`. `down -v` deletes it.
       - qdrant_storage:/qdrant/storage
       - qdrant_snapshots:/qdrant/snapshots
 
-    # Healthcheck не задан осознанно: образ собран на debian-slim и не содержит
-    # curl или wget, а проверка через bash /dev/tcp показывает только открытый
-    # порт, но не готовность шардов. Проверяйте с хоста:
+    # No healthcheck on purpose: the image is built on debian-slim and ships
+    # neither curl nor wget, while a bash /dev/tcp probe only shows that the port
+    # is open, not that the shards are ready. Check from the host:
     #   curl http://127.0.0.1:6333/readyz   # all shards are ready
     #   curl http://127.0.0.1:6333/healthz  # healthz check passed
 

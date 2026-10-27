@@ -19,8 +19,7 @@ Rules for this file:
 answered requests for paths absent from the spec with `400 BAD_REQUEST`, reasoning
 that "the request does not match the contract".
 
-**What the user said.** "Нет, ты тут тоже прав, нужен отдельно 404" — a missing
-route needs its own 404.
+**What the user said.** "No, you are right here too, a separate 404 is needed" (translated from Russian) — a missing route needs its own 404.
 
 **Why it was wrong.** A request that names no existing resource is not a
 malformed request. 400 tells the client "your message is broken, fix it and
@@ -62,7 +61,7 @@ mapping. When the generated server stopped calling `NewError` and routed handler
 errors to `cfg.ErrorHandler` instead, `ErrFactDoesNotExist` became 500 and
 `ErrAlreadyHasFact` stopped being 409.
 
-**What the user said.** "Разрешаю, это большая проблема. Так быть не должно."
+**What the user said.** "I approve, this is a big problem. It must not be like that" (translated from Russian).
 
 **Why it was wrong.** Two entry points turned errors into responses, but only
 one of them knew the mapping. The generated handler path silently lost it, so a
