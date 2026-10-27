@@ -51,12 +51,19 @@ func scaffold() (*cobra.Command, error) {
 
 	cfg, err := config.GetConfig()
 	if err != nil {
-		initialized, err := init.Dump()
-		if err != nil {
-			log.Fatalf("Failed to initialize configuration: %s\n", err.Error())
-		} else if initialized {
+		initialized, dumpErr := init.Dump()
+		if dumpErr != nil {
+			log.Fatalf("Failed to initialize configuration: %s\n", dumpErr.Error())
+		}
+
+		if initialized {
 			log.Fatal(colors.Primary().Sprintf("Initial configuration dumped. Please set It up: %s\n", configPath))
 		}
+
+		// The file exists but could not be read or parsed, and the user declined to
+		// overwrite it. Every constructor below dereferences cfg, so carrying on
+		// would panic on a nil pointer; report the original failure instead.
+		log.Fatalf("Failed to read configuration: %s\n", err.Error())
 	}
 
 	client := http.DefaultClient

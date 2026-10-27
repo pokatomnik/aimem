@@ -39,7 +39,7 @@ func (i *Initializer) dumpConfigFile() error {
 
 func (i *Initializer) confirmOverwrite() bool {
 	res, err := i.confirmation.Confirm(
-		fmt.Sprintf("Confguration already exists at %s. Overwrite?", i.filePath),
+		fmt.Sprintf("Configuration already exists at %s. Overwrite?", i.filePath),
 	)
 	if err != nil {
 		return false
@@ -62,7 +62,7 @@ func (i *Initializer) Dump() (bool, error) {
 	}
 
 	if stat.IsDir() {
-		return false, fmt.Errorf("failed to save confifuration: target file is a directory")
+		return false, fmt.Errorf("failed to save configuration: target file is a directory")
 	}
 
 	overwrite := i.confirmOverwrite()
