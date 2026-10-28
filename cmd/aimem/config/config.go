@@ -17,7 +17,7 @@ type Config struct {
 	SimilarityThreshold float32 `toml:"similarityThreshold" comment:"The threshold beyond which a fact is considered relevant, example: 0.5. Min: 0, max: 1, greater or less values truncated"` // Embedding dimensions
 	Dimensions          uint32  `toml:"dimensions" comment:"Vector database dimensions. Make sure your embedding model supports It"`
 
-	WebHTTPHost string `toml:"webHttpHost" comment:"Web search engine to listen on. Default is 127.0.0.1:8888"`
+	WebHTTPHost string `toml:"webHttpHost" comment:"Host the API, UI and MCP endpoint listen on. Default is 127.0.0.1:8888"`
 
 	// Database API
 	Qdrant Qdrant `toml:"qdrant" comment:"Qdrant database configuration. Optional, will use embedded DB engine when not specified"`

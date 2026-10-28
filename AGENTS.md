@@ -15,10 +15,12 @@ Code is layered, with dependencies pointing inward:
   which marshals the struct and its `comment` tags.
 - `internal/controllers/cli/<command>/` — thin CLI layer; parses args and prints
   via `internal/shared/colors`. Commands: `init`, `remember`, `recall`, `fact`,
-  `remove`, `import`, `mcp {stdio,http}`, `web`.
+  `remove`, `import`, `web`. There is no separate MCP command: the MCP endpoint
+  is mounted on the `web` server.
 - `internal/controllers/web/` — the `web` command's HTTP API: `openapi.yaml` is
   the contract, `server/` is generated from it by `ogen` (`make generate`), and
-  `methods.go` plus `error_handler.go` hold the hand-written side.
+  `methods.go` plus `error_handler.go` hold the hand-written side. `handler.go`
+  splits one listener three ways by path prefix.
 - `internal/controllers/web/ui/` — the React SPA, built by Vite into `ui/dist` and
   embedded via `go:embed all:ui/dist` in `spa.go`. Its client types come from
   `openapi.yaml` through `npm run api:generate`.
@@ -31,7 +33,8 @@ Code is layered, with dependencies pointing inward:
 - `internal/repositories/qdrant/` — the same storage contract backed by Qdrant over
   HTTP; keeps the `kv` schema and satisfies the use cases' interfaces.
 - `internal/adapters/` — outbound integrations (`ollama`) and inbound input
-  (`input`), plus the servers (`servers/{mcp,stdio,http}`).
+  (`input`), plus the MCP server-side integrations (`servers/mcp` for the server
+  and its tools, `servers/http` for the streamable HTTP handler).
 - `internal/shared/` — cross-cutting helpers.
 
 Runtime data lives in `~/.aimem` for the embedded backend; config is required at
@@ -61,6 +64,15 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
   patched in place. Writing the same text again answers `ErrAlreadyHasFact` instead of overwriting. A change, if one is ever needed, is two steps — delete the record, then write the new one — so a stored record is always the result of exactly one write. Concretely: do not call in-place update APIs (payload update, vector update, partial or batch overwrite). `internal/repositories/qdrant/immutability_test.go` enforces this for the Qdrant backend by failing if any operation reaches a mutation endpoint.
   - The write path is read-then-write: `AddFact` checks whether the point exists and then inserts it, in two requests. Two concurrent writers of the same text can both pass the check; the loser then rewrites the same ID with the same content and sees success instead of `ErrAlreadyHasFact`. The data stays correct, so the window is accepted — writes are far rarer than reads. Do not paper over it with a process-local lock: a second instance is a separate process and would not share it, so the lock would only hide the window.
 - **Recall is semantic only**, returning summaries — no tags, filters, or keyword search. `topK` is applied first, then results are filtered by `similarityThreshold`. The two backends report that number differently and the adapter must respect it: xvec returns a cosine _distance_ (0 = identical), so `kv` converts it with `1 - Score`, while Qdrant's cosine score is already a similarity and must not be inverted.
+- **One listener serves three things.** `newHandler` in
+  `internal/controllers/web/handler.go` splits requests by path prefix, in this
+  order: `/mcp` → the MCP streamable-HTTP handler, `/api/` → the generated API,
+  everything else → the SPA. The split lives in a handler rather than in
+  `server.WithNotFound` on purpose: a typo inside the prefix, such as
+  `/api/v2/search`, then still reaches the API and is answered with a JSON 404
+  instead of quietly returning `index.html`. MCP is created once in `scaffold`
+  and passed into the `web` controller, so the MCP endpoint shares the `web`
+  port and has no authentication of its own.
 - **No timeouts.** Requests run without a deadline, so a slow backend blocks the CLI. Cancellation exists only through signals: `main` wraps `context.Background()` in `signal.NotifyContext` (SIGINT/SIGTERM/SIGQUIT) and prints `Cancelled` when the context is canceled.
 - **Import is sequential**, and the write orchestration is duplicated between `remember` and `import`.
 - **`plain.jsonl` is append-only.** Removing a fact does not rewrite it, by design.

@@ -23,8 +23,7 @@ backend everything runs on your machine.
 - `fact` — print a fact by its ID.
 - `remove` — delete a fact by its ID.
 - `import` — bulk-import facts from JSON Lines read from stdin.
-- `mcp` — run the MCP server over `stdio` or `http` for use by AI assistants.
-- `web` — serve the same memory over an HTTP API and a browser UI.
+- `web` — serve the HTTP API, the browser UI, and the MCP endpoint from one port.
 
 ## Requirements
 
@@ -105,10 +104,7 @@ similarityThreshold = 0.5
 # Embedding dimensions; must match the embedding model output
 dimensions = 768
 
-# Host the MCP HTTP transport listens on
-mcpHttpHost = "127.0.0.1:7777"
-
-# Host the web API and UI listen on
+# Host the HTTP API, the UI, and the MCP endpoint listen on
 webHttpHost = "127.0.0.1:8888"
 
 # Optional. Setting `host` switches storage from the embedded index to Qdrant.
@@ -125,8 +121,7 @@ apiKey = ""        # leave empty when Qdrant has no authorization
 | `topK`                | Upper bound on the number of results returned by `recall`.                                                                                   |
 | `similarityThreshold` | Minimum cosine similarity for a fact to be returned; `0` matches everything, `1` requires an exact match. Values outside `0..1` are clamped. |
 | `dimensions`          | Vector size; it is fixed in the database schema when it is created.                                                                          |
-| `mcpHttpHost`         | Address for the MCP HTTP transport. Defaults to `127.0.0.1:7777`.                                                                            |
-| `webHttpHost`         | Address for the `web` HTTP API and UI. Defaults to `127.0.0.1:8888`.                                                                         |
+| `webHttpHost`         | Address for the `web` server: HTTP API, MCP endpoint, and UI. Defaults to `127.0.0.1:8888`.                                                  |
 | `[qdrant].host`       | Qdrant base URL. **Empty means the embedded backend**; any non-empty value switches to Qdrant.                                               |
 | `[qdrant].apiKey`     | Sent as the `api-key` header. Leave empty when the server has no key — the header is then omitted entirely.                                  |
 
@@ -330,25 +325,32 @@ aimem import < facts.jsonl
 
 ### MCP server
 
-`aimem mcp` runs the MCP server for AI assistants. Two transports are available:
+The MCP server is part of `aimem web`: it is mounted on the same listener, under
+`/mcp`, next to the API and the UI. There is no separate command and no separate
+port.
 
 ```sh
-# stdio, for editors that spawn the server themselves
-aimem mcp stdio
-
-# HTTP, listening on mcpHttpHost (127.0.0.1:7777 by default)
-aimem mcp http
+aimem web
 ```
+
+Point an MCP client at `http://127.0.0.1:8888/mcp` using the streamable HTTP
+transport. The path is matched by prefix, so anything beginning with `/mcp`
+reaches the MCP handler rather than the UI.
 
 The server exposes `remember`, `recall`, `read_fact`, and `remove_fact_by_id`. Its
 usage instructions are embedded from
 `internal/adapters/servers/mcp/INSTRUCTIONS.md` and sent to the client on
 initialization.
 
+The endpoint has no authentication of its own. `webHttpHost` defaults to
+`127.0.0.1:8888`, and the MCP library rejects a non-loopback `Host` header on a
+loopback listener; binding `webHttpHost` to a non-loopback address publishes the
+MCP server to the network unprotected.
+
 ### Web API and UI
 
-`aimem web` serves the HTTP API and the browser UI from one port, listening on
-`webHttpHost` (`127.0.0.1:8888` by default):
+`aimem web` serves the HTTP API, the MCP endpoint and the browser UI from one
+port, listening on `webHttpHost` (`127.0.0.1:8888` by default):
 
 ```sh
 aimem web
@@ -386,7 +388,9 @@ the mapping:
 | `500`  | Anything else, including a storage conversion error.                      |
 
 Any path under `/api/` is answered as JSON, so a version typo like
-`/api/v2/search` returns a JSON 404 instead of the UI's HTML.
+`/api/v2/search` returns a JSON 404 instead of the UI's HTML. The three
+prefixes are matched in this order: `/mcp`, then `/api/`, then everything else,
+which is the UI.
 
 ### Import format
 

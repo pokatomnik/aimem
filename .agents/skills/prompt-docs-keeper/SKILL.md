@@ -90,7 +90,7 @@ Check these before trusting any sentence in the docs. Each one has already been 
 
 ### CLI
 
-- **Read `Use:` in `internal/controllers/cli/*/controller.go`** and compare with the commands listed in `README.md`. The CLI has commands the README does not mention (`init`, `import`, `mcp {stdio,http}`, `web`) and README sections that may describe removed behavior. Note that `import` is declared as `Use: "import"` in the `consume` package.
+- **Read `Use:` in `internal/controllers/cli/*/controller.go`** and compare with the commands listed in `README.md`. The CLI has commands the README does not mention (`init`, `import`, `web`) and README sections that may describe removed behavior. Note that `import` is declared as `Use: "import"` in the `consume` package. There is no `mcp` command: the MCP endpoint is mounted on the `web` server under `/mcp`.
 - **Check flags and defaults** against `cmd/aimem/scaffold.go` and the controllers.
 
 ### Storage

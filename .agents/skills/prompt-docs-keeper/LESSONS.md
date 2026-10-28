@@ -69,3 +69,34 @@ reality proves nothing.
 **Check.** `go test -overlay` against the pre-fix file must fail; and an
 end-to-end run against the real binary must agree with the unit test. A unit test
 and a live check disagreeing means the fake is wrong, not the live check.
+
+---
+
+## #3 — Report against the file, not against a diff hunk; and docs work is not a code review
+
+**What I did.** In `internal/controllers/web/handler.go` I reported `mcpPrefix`
+as declared-but-unused, because the `git diff` hunk showed the `const` block
+adding it while the `switch` case I read used the literal `"/mcp"`. In the same
+report I added three unsolicited code findings: a duplicated `net/http` import
+alias in `internal/adapters/servers/http/http.go`, a deleted explanatory comment,
+and a nil-`mcpHandler` hazard.
+
+**What the user said.** «по коду - ОК, так и надо, константу я использовал,
+остальное трогать не нужно» — and then asked only for the docs to be updated.
+
+**Why it was wrong.** Two separate mechanisms. First, a diff hunk is a snapshot
+of one edit against one base: it does not show what the file says now, and it
+cannot show whether a symbol is used elsewhere in the file at all. Reading the
+hunk and concluding "unused" skipped the one check that settles it — a `grep` of
+the current file. Second, the user writes the code by hand and asks for text
+work; piling on style findings about code they just wrote turns a docs task into
+an unrequested review and buries the findings they did want.
+
+**Rule.** Before reporting any code finding, confirm it against the current file
+with `read_file`/`grep`, never against a diff hunk alone. When the user asks for
+docs, report only what the docs get wrong; keep code observations to a short
+"judgment calls" list, and drop them entirely if the user says the code is fine.
+
+**Check.** `grep -c mcpPrefix internal/controllers/web/handler.go` returns 2 —
+declaration and use. For any "unused symbol" claim, the same grep must come back
+with a count of 1 (declaration only) before the claim is written down.
