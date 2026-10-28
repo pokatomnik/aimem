@@ -7,7 +7,7 @@ import (
 )
 
 // recordingHandler marks which branch was taken by answering with its own
-// status, so the test needs no knowledge of either side's real behaviour.
+// status, so the test needs no knowledge of any side's real behaviour.
 type recordingHandler struct {
 	status int
 	called bool
@@ -20,77 +20,125 @@ func (h *recordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(h.status)
 }
 
+// branchHandlers keeps one recorder per branch of the split, each answering
+// with a status no other branch uses, so a wrong route is visible both in
+// which handler ran and in the status that reached the client.
+type branchHandlers struct {
+	api *recordingHandler
+	ui  *recordingHandler
+	mcp *recordingHandler
+}
+
+func newBranchHandlers() *branchHandlers {
+	return &branchHandlers{
+		api: &recordingHandler{status: http.StatusTeapot},
+		ui:  &recordingHandler{status: http.StatusOK},
+		mcp: &recordingHandler{status: http.StatusAccepted},
+	}
+}
+
+func (b *branchHandlers) handler() http.Handler {
+	return newHandler(b.api, b.ui, b.mcp)
+}
+
+func (b *branchHandlers) byName(name string) *recordingHandler {
+	switch name {
+	case "api":
+		return b.api
+	case "ui":
+		return b.ui
+	case "mcp":
+		return b.mcp
+	default:
+		panic("unknown branch: " + name)
+	}
+}
+
+func (b *branchHandlers) calledCount() int {
+	n := 0
+
+	for _, h := range []*recordingHandler{b.api, b.ui, b.mcp} {
+		if h.called {
+			n++
+		}
+	}
+
+	return n
+}
+
 func TestNewHandlerRoutesByPrefix(t *testing.T) {
 	tests := []struct {
-		name    string
-		target  string
-		wantAPI bool
+		name   string
+		target string
+		want   string
 	}{
 		{
-			name:    "spec path",
-			target:  "/api/v1/search",
-			wantAPI: true,
+			name:   "spec path",
+			target: "/api/v1/search",
+			want:   "api",
 		},
 		{
-			name:    "spec path with an id",
-			target:  "/api/v1/fact/abc123",
-			wantAPI: true,
+			name:   "spec path with an id",
+			target: "/api/v1/fact/abc123",
+			want:   "api",
 		},
 		{
-			name:    "unknown path inside the prefix stays on the API",
-			target:  "/api/v2/search",
-			wantAPI: true,
+			name:   "unknown path inside the prefix stays on the API",
+			target: "/api/v2/search",
+			want:   "api",
 		},
 		{
-			name:    "root is the SPA",
-			target:  "/",
-			wantAPI: false,
+			name:   "MCP root",
+			target: "/mcp",
+			want:   "mcp",
 		},
 		{
-			name:    "index is the SPA",
-			target:  "/index.html",
-			wantAPI: false,
+			name:   "MCP path below the prefix",
+			target: "/mcp/v1/tools",
+			want:   "mcp",
 		},
 		{
-			name:    "hashed asset is the SPA",
-			target:  "/assets/index-CT2NxLkI.js",
-			wantAPI: false,
+			name:   "root is the SPA",
+			target: "/",
+			want:   "ui",
 		},
 		{
-			name:    "prefix without the trailing slash is the SPA",
-			target:  "/api",
-			wantAPI: false,
+			name:   "index is the SPA",
+			target: "/index.html",
+			want:   "ui",
+		},
+		{
+			name:   "hashed asset is the SPA",
+			target: "/assets/index-CT2NxLkI.js",
+			want:   "ui",
+		},
+		{
+			name:   "prefix without the trailing slash is the SPA",
+			target: "/api",
+			want:   "ui",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			api := &recordingHandler{status: http.StatusTeapot}
-			ui := &recordingHandler{status: http.StatusOK}
+			handlers := newBranchHandlers()
 
 			rec := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, tt.target, nil)
 
-			newHandler(api, ui).ServeHTTP(rec, r)
+			handlers.handler().ServeHTTP(rec, r)
 
-			switch {
-			case tt.wantAPI && !api.called:
-				t.Fatal("API handler was not called")
-			case !tt.wantAPI && !ui.called:
-				t.Fatal("UI handler was not called")
+			want := handlers.byName(tt.want)
+			if !want.called {
+				t.Fatalf("%s handler was not called", tt.want)
 			}
 
-			if api.called && ui.called {
-				t.Fatal("both handlers were called, the split is ambiguous")
+			if handlers.calledCount() != 1 {
+				t.Fatal("more than one handler was called, the split is ambiguous")
 			}
 
-			wantStatus := ui.status
-			if tt.wantAPI {
-				wantStatus = api.status
-			}
-
-			if rec.Code != wantStatus {
-				t.Errorf("status = %d, want %d", rec.Code, wantStatus)
+			if rec.Code != want.status {
+				t.Errorf("status = %d, want %d", rec.Code, want.status)
 			}
 		})
 	}
@@ -99,18 +147,48 @@ func TestNewHandlerRoutesByPrefix(t *testing.T) {
 // The request must reach the inner handler untouched, otherwise path, query and
 // body would be lost at the split.
 func TestNewHandlerPassesRequestThrough(t *testing.T) {
-	api := &recordingHandler{status: http.StatusOK}
-	ui := &recordingHandler{status: http.StatusOK}
-
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/search?q=x", nil)
-
-	newHandler(api, ui).ServeHTTP(httptest.NewRecorder(), r)
-
-	if api.gotReq != r {
-		t.Fatal("the API handler received a different *http.Request")
+	tests := []struct {
+		name   string
+		target string
+		want   string
+	}{
+		{
+			name:   "API",
+			target: "/api/v1/search?q=x",
+			want:   "api",
+		},
+		{
+			name:   "MCP",
+			target: "/mcp?session=y",
+			want:   "mcp",
+		},
+		{
+			name:   "SPA",
+			target: "/some/route?z=w",
+			want:   "ui",
+		},
 	}
 
-	if got, want := api.gotReq.URL.RawQuery, "q=x"; got != want {
-		t.Errorf("query = %q, want %q", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handlers := newBranchHandlers()
+
+			r := httptest.NewRequest(http.MethodPost, tt.target, nil)
+
+			handlers.handler().ServeHTTP(httptest.NewRecorder(), r)
+
+			got := handlers.byName(tt.want).gotReq
+			if got == nil {
+				t.Fatalf("%s handler was not called", tt.want)
+			}
+
+			if got != r {
+				t.Fatal("the inner handler received a different *http.Request")
+			}
+
+			if want := r.URL.RawQuery; got.URL.RawQuery != want {
+				t.Errorf("query = %q, want %q", got.URL.RawQuery, want)
+			}
+		})
 	}
 }

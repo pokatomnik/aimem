@@ -17,8 +17,6 @@ type Config struct {
 	SimilarityThreshold float32 `toml:"similarityThreshold" comment:"The threshold beyond which a fact is considered relevant, example: 0.5. Min: 0, max: 1, greater or less values truncated"` // Embedding dimensions
 	Dimensions          uint32  `toml:"dimensions" comment:"Vector database dimensions. Make sure your embedding model supports It"`
 
-	// Public API
-	MCPHTTPHost string `toml:"mcpHttpHost" comment:"MCP HTTP host to listen on. Default is 127.0.0.1:7777"`
 	WebHTTPHost string `toml:"webHttpHost" comment:"Web search engine to listen on. Default is 127.0.0.1:8888"`
 
 	// Database API
@@ -39,7 +37,6 @@ func DefaultConfig() Config {
 		OllamaHost:          "http://localhost:11434",
 		EmbeddingModel:      "embeddinggemma-2:740m",
 		SummarizationModel:  "gemma4:e2b",
-		MCPHTTPHost:         "127.0.0.1:7777",
 		WebHTTPHost:         "127.0.0.1:8888",
 		Qdrant:              Qdrant{},
 	}
@@ -63,10 +60,6 @@ func (c *Config) GetSummarizationModel() string {
 
 func (c *Config) GetTopK() int {
 	return c.TopK
-}
-
-func (c *Config) GetMCPHTTPHost() string {
-	return c.MCPHTTPHost
 }
 
 func (c *Config) GetWebHTTPHost() string {

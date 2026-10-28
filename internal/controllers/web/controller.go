@@ -19,6 +19,7 @@ type Controller struct {
 	recall     Recall
 	getFact    GetFact
 	removeFact RemoveFact
+	mcpHandler http.Handler
 }
 
 const defaultWebHost = "127.0.0.1:8888"
@@ -29,6 +30,7 @@ func New(
 	recall Recall,
 	getFact GetFact,
 	removeFact RemoveFact,
+	mcpHandler http.Handler,
 ) *Controller {
 	return &Controller{
 		cfg:        cfg,
@@ -36,6 +38,7 @@ func New(
 		recall:     recall,
 		getFact:    getFact,
 		removeFact: removeFact,
+		mcpHandler: mcpHandler,
 	}
 }
 
@@ -63,7 +66,7 @@ func (c *Controller) Run(
 
 	ctxServer := httpServerExtPkg.NewHTTPServerExt(&http.Server{
 		Addr:    host,
-		Handler: newHandler(api, spa),
+		Handler: newHandler(api, spa, c.mcpHandler),
 		BaseContext: func(l net.Listener) context.Context {
 			return ctx
 		},
