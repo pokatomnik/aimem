@@ -6,10 +6,12 @@ info:
   contact:
     email: hugefast@gmail.com
 servers:
-  - url: http://127.0.0.1:8888/
+  - url: http://127.0.0.1:8888
 tags:
   - name: mem-api
     description: Memory management API
+security:
+  - bearerAuth: []
 paths:
   /api/v1/fact:
     post:
@@ -49,6 +51,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/appError"
+        "401":
+          $ref: "#/components/responses/unauthorized"
         default:
           description: Failed to add a fact
           content:
@@ -82,6 +86,8 @@ paths:
                 properties:
                   value:
                     $ref: "#/components/schemas/nothing"
+        "401":
+          $ref: "#/components/responses/unauthorized"
     get:
       tags:
         - mem-api
@@ -108,6 +114,8 @@ paths:
                 properties:
                   value:
                     $ref: "#/components/schemas/fact"
+        "401":
+          $ref: "#/components/responses/unauthorized"
         "404":
           description: Fact not found
           content:
@@ -147,6 +155,8 @@ paths:
                 properties:
                   value:
                     $ref: "#/components/schemas/searchResult"
+        "401":
+          $ref: "#/components/responses/unauthorized"
         default:
           description: Search failed
           content:
@@ -155,6 +165,24 @@ paths:
                 $ref: "#/components/schemas/appError"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Per-user token, the user is resolved from it
+  responses:
+    unauthorized:
+      description: The Authorization header is missing or its token is not recognised
+      headers:
+        WWW-Authenticate:
+          description: Challenge naming the expected scheme
+          schema:
+            type: string
+            example: Bearer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/appError"
   schemas:
     addFactParams:
       type: object
@@ -266,6 +294,7 @@ components:
         - BAD_REQUEST
         - INTERNAL_ERROR
         - NOT_FOUND
+        - UNAUTHORIZED
     nothing:
       type: object
       description: Nothing when nothing to say but everything is OK

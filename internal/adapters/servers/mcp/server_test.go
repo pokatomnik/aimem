@@ -2,43 +2,39 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/pokatomnik/gomem/internal/entities/fact"
+	"github.com/pokatomnik/gomem/internal/entities/user"
 )
 
-type fakeDeps struct {
-	recalled string
-	readID   string
-}
+// fakeDeps satisfies every dependency the server asks for. The tool behaviour
+// itself is covered in the tools package, where the input types are visible; here
+// it only has to be non-nil.
+type fakeDeps struct{}
 
-func (f *fakeDeps) Remember(ctx context.Context, s string) (string, error) {
+func (f *fakeDeps) Remember(ctx context.Context, userID, s string) (string, error) {
 	return "summary of " + s, nil
 }
 
-func (f *fakeDeps) Recall(ctx context.Context, q string) ([]fact.FactListView, error) {
-	f.recalled = q
+func (f *fakeDeps) Recall(ctx context.Context, userID, q string) ([]fact.FactListView, error) {
 	return []fact.FactListView{
 		{ID: "id-1", CreatedAt: "2026-01-01", Summary: "short summary one"},
-		{ID: "id-2", CreatedAt: "2026-01-02", Summary: "short summary two"},
 	}, nil
 }
 
-func (f *fakeDeps) GetFact(ctx context.Context, id string) (fact.FactFullView, error) {
-	f.readID = id
-	return fact.FactFullView{
-		ID:        id,
-		CreatedAt: "2026-01-01",
-		Summary:   "short",
-		Content:   "the full stored text",
-	}, nil
+func (f *fakeDeps) GetFact(ctx context.Context, userID, id string) (fact.FactFullView, error) {
+	return fact.FactFullView{ID: id}, nil
 }
 
-func (f *fakeDeps) RemoveFactByID(ctx context.Context, id string) error {
+func (f *fakeDeps) RemoveFactByID(ctx context.Context, userID, id string) error {
 	return nil
+}
+
+func (f *fakeDeps) GetUserByToken(ctx context.Context, token string) (user.User, error) {
+	return user.User{ID: "u-" + token}, nil
 }
 
 func connect(t *testing.T, deps MCPDeps) (*sdk.ClientSession, context.Context) {
@@ -65,12 +61,20 @@ func connect(t *testing.T, deps MCPDeps) (*sdk.ClientSession, context.Context) {
 	return cs, ctx
 }
 
-func deps(f *fakeDeps) MCPDeps {
-	return MCPDeps{Remember: f, Recall: f, GetFact: f, RemoveFact: f}
+func deps() MCPDeps {
+	f := &fakeDeps{}
+
+	return MCPDeps{
+		Remember:       f,
+		Recall:         f,
+		GetFact:        f,
+		RemoveFact:     f,
+		Authentication: f,
+	}
 }
 
 func TestToolDescriptions(t *testing.T) {
-	cs, ctx := connect(t, deps(&fakeDeps{}))
+	cs, ctx := connect(t, deps())
 
 	res, err := cs.ListTools(ctx, nil)
 	if err != nil {
@@ -116,7 +120,7 @@ func TestToolDescriptions(t *testing.T) {
 }
 
 func TestInstructionsMentionEveryTool(t *testing.T) {
-	cs, _ := connect(t, deps(&fakeDeps{}))
+	cs, _ := connect(t, deps())
 
 	init := cs.InitializeResult()
 	if init == nil {
@@ -144,7 +148,7 @@ func TestInstructionsMentionEveryTool(t *testing.T) {
 }
 
 func TestInstructionsCoverProactiveRecall(t *testing.T) {
-	cs, _ := connect(t, deps(&fakeDeps{}))
+	cs, _ := connect(t, deps())
 
 	init := cs.InitializeResult()
 	if init == nil {
@@ -168,65 +172,25 @@ func TestInstructionsCoverProactiveRecall(t *testing.T) {
 	}
 
 	if !strings.Contains(instr, "weakest source of truth") {
-		t.Error("instructions do not rank memory below the current context")
+		t.Error("instructions rank memory below the current context")
 	}
 }
 
-func TestRecallReturnsSummariesOnly(t *testing.T) {
-	f := &fakeDeps{}
-	cs, ctx := connect(t, deps(f))
+// A call made over a transport that carries no HTTP headers must be refused, not
+// answered: there are no credentials, so there is no user to read or write for.
+func TestCallWithoutHeadersIsRefused(t *testing.T) {
+	cs, ctx := connect(t, deps())
 
 	res, err := cs.CallTool(ctx, &sdk.CallToolParams{
 		Name:      "recall",
 		Arguments: map[string]any{"query": "anything"},
 	})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("CallTool: %v", err)
 	}
 
-	if res.IsError {
-		t.Fatalf("recall failed: %v", res.Content)
-	}
-
-	b, _ := json.Marshal(res.StructuredContent)
-
-	if strings.Contains(string(b), "the full stored text") {
-		t.Error("recall leaked the full fact text; it must return summaries only")
-	}
-
-	if !strings.Contains(string(b), "short summary one") {
-		t.Errorf("recall did not return summaries: %s", b)
-	}
-
-	if f.recalled != "anything" {
-		t.Errorf("query not forwarded, got %q", f.recalled)
-	}
-}
-
-func TestReadFactReturnsFullText(t *testing.T) {
-	f := &fakeDeps{}
-	cs, ctx := connect(t, deps(f))
-
-	res, err := cs.CallTool(ctx, &sdk.CallToolParams{
-		Name:      "read_fact",
-		Arguments: map[string]any{"id": "id-1"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if res.IsError {
-		t.Fatalf("read_fact failed: %v", res.Content)
-	}
-
-	b, _ := json.Marshal(res.StructuredContent)
-
-	if !strings.Contains(string(b), "the full stored text") {
-		t.Errorf("read_fact did not return the full text: %s", b)
-	}
-
-	if f.readID != "id-1" {
-		t.Errorf("id not forwarded, got %q", f.readID)
+	if !res.IsError {
+		t.Fatal("call succeeded without credentials")
 	}
 }
 

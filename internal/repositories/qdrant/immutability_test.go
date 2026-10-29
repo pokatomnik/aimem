@@ -16,12 +16,12 @@ import (
 // The list is the full set of in-place mutation routes in the pinned Qdrant API
 // that a partially written record could come from.
 var inPlaceMutationPaths = []string{
-	pathPoints + "/payload",
-	pathPoints + "/payload/delete",
-	pathPoints + "/payload/clear",
-	pathPoints + "/vectors",
-	pathPoints + "/vectors/delete",
-	pathPoints + "/batch",
+	pathPoints(testUserID) + "/payload",
+	pathPoints(testUserID) + "/payload/delete",
+	pathPoints(testUserID) + "/payload/clear",
+	pathPoints(testUserID) + "/vectors",
+	pathPoints(testUserID) + "/vectors/delete",
+	pathPoints(testUserID) + "/batch",
 }
 
 func TestNoOperationPatchesAStoredPoint(t *testing.T) {
@@ -35,9 +35,9 @@ func TestNoOperationPatchesAStoredPoint(t *testing.T) {
 	// read and delete operations use, so AddFact still reaches its insert.
 	respond := collectionHandlers(func(request recordedRequest) (int, string) {
 		switch request.Path {
-		case pathPointsQuery:
+		case pathPointsQuery(testUserID):
 			return http.StatusOK, `{"result":{"points":[]},"status":"ok"}`
-		case pathPoints:
+		case pathPoints(testUserID):
 			if request.Method == http.MethodPut {
 				return http.StatusOK, `{"result":{"status":"completed"},"status":"ok"}`
 			}
@@ -54,20 +54,20 @@ func TestNoOperationPatchesAStoredPoint(t *testing.T) {
 
 	operations := map[string]func(context.Context, *Qdrant) error{
 		"AddFact": func(ctx context.Context, q *Qdrant) error {
-			return q.AddFact(ctx, []float32{1, 0, 0}, "s", "f")
+			return q.AddFact(ctx, testUserID, []float32{1, 0, 0}, "s", "f")
 		},
 		"GetFactByID": func(ctx context.Context, q *Qdrant) error {
-			_, err := q.GetFactByID(ctx, id)
+			_, err := q.GetFactByID(ctx, testUserID, id)
 
 			return err
 		},
 		"GetFactsList": func(ctx context.Context, q *Qdrant) error {
-			_, err := q.GetFactsList(ctx, []float32{1, 0, 0}, 5, 0.5)
+			_, err := q.GetFactsList(ctx, testUserID, []float32{1, 0, 0}, 5, 0.5)
 
 			return err
 		},
 		"RemoveFactByID": func(ctx context.Context, q *Qdrant) error {
-			return q.RemoveFactByID(ctx, id)
+			return q.RemoveFactByID(ctx, testUserID, id)
 		},
 	}
 

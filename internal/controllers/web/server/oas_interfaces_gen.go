@@ -9,6 +9,10 @@ type GetFactByIDRes interface {
 	getFactByIDRes()
 }
 
+type RemoveFactByIDRes interface {
+	removeFactByIDRes()
+}
+
 type SearchRes interface {
 	searchRes()
 }

@@ -26,6 +26,10 @@ type (
 	// the xvec-backed implementation; a test sets it to inject a fake.
 	collectionOpener func(ctx context.Context) (collection, error)
 
+	// KV is the embedded backend. Every operation takes a userID to keep the same
+	// public contract as the Qdrant backend, and ignores it on purpose: this store
+	// is local files for a single-user deployment, so there is nobody to separate.
+	// The two backends share the contract, not the storage layout.
 	KV struct {
 		config config
 		// collection *xvec.Collection

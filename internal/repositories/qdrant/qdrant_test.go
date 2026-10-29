@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+// testUserID is the user every test acts as unless it is checking that two users
+// are kept apart. Collection paths are built from it, so an assertion on a path
+// also asserts which collection the request reached.
+const testUserID = "u1"
+
 // fakeConfig satisfies the package's config interface without reading any file or
 // environment variable.
 type fakeConfig struct {
@@ -82,9 +87,14 @@ func newTestRepository(handle func(request recordedRequest) (int, string)) (*Qdr
 
 // collectionHandlers answers the collection bootstrap that every operation runs
 // first, delegating the request that matters to the given handler.
+//
+// The bootstrap is recognised by its trailing "/exists" rather than by a full
+// path: the path carries the user's collection name, and the helper is about the
+// bootstrap step, not about one particular collection. Tests that assert on the
+// exact collection pass an explicit handler instead.
 func collectionHandlers(handle func(request recordedRequest) (int, string)) func(recordedRequest) (int, string) {
 	return func(request recordedRequest) (int, string) {
-		if request.Path == pathCollectionExists {
+		if strings.HasSuffix(request.Path, "/exists") {
 			return http.StatusOK, `{"result":{"exists":true},"status":"ok"}`
 		}
 

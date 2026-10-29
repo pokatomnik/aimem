@@ -17,7 +17,7 @@ type (
 	}
 )
 
-func ToolRemoveFact(r mcpdeps.RemoveFact) (
+func ToolRemoveFact(a mcpdeps.Authentication, r mcpdeps.RemoveFact) (
 	mcp.Tool,
 	mcp.ToolHandlerFor[removeFactInput, removeFactOutput],
 	error,
@@ -38,7 +38,12 @@ func ToolRemoveFact(r mcpdeps.RemoveFact) (
 		removeFactOutput,
 		error,
 	) {
-		err := r.RemoveFactByID(ctx, input.ID)
+		userID, err := authenticate(ctx, req, a)
+		if err != nil {
+			return &mcp.CallToolResult{IsError: true}, removeFactOutput{}, err
+		}
+
+		err = r.RemoveFactByID(ctx, userID, input.ID)
 		if err != nil {
 			return &mcp.CallToolResult{IsError: true}, removeFactOutput{Ok: false}, err
 		}

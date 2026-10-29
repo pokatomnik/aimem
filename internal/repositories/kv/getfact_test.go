@@ -66,7 +66,7 @@ func newFakeKV(f *fakeCollection) *KV {
 func TestGetFactByIDMissingFact(t *testing.T) {
 	kv := newFakeKV(&fakeCollection{fetched: []*xvec.Document{nil}})
 
-	_, err := kv.GetFactByID(context.Background(), "absent")
+	_, err := kv.GetFactByID(context.Background(), "", "absent")
 
 	if !errors.Is(err, apperrors.ErrFactDoesNotExist) {
 		t.Fatalf("want ErrFactDoesNotExist, got %v", err)
@@ -84,7 +84,7 @@ func TestGetFactByIDPresentFact(t *testing.T) {
 		},
 	}}})
 
-	view, err := kv.GetFactByID(context.Background(), "present")
+	view, err := kv.GetFactByID(context.Background(), "", "present")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestRemoveFactByIDMissingFact(t *testing.T) {
 		deleteErr: batch,
 	})
 
-	err := kv.RemoveFactByID(context.Background(), "absent")
+	err := kv.RemoveFactByID(context.Background(), "", "absent")
 
 	if !errors.Is(err, apperrors.ErrFactDoesNotExist) {
 		t.Fatalf("want ErrFactDoesNotExist, got %v", err)
@@ -140,7 +140,7 @@ func TestRemoveFactByIDMissingFactPerKeyOnly(t *testing.T) {
 		deleted: []xvec.WriteResult{{PrimaryKey: "absent", Err: cause}},
 	})
 
-	err := kv.RemoveFactByID(context.Background(), "absent")
+	err := kv.RemoveFactByID(context.Background(), "", "absent")
 
 	if !errors.Is(err, apperrors.ErrFactDoesNotExist) {
 		t.Fatalf("want ErrFactDoesNotExist, got %v", err)
@@ -157,7 +157,7 @@ func TestRemoveFactByIDPropagatesRealError(t *testing.T) {
 		deleteErr: boom,
 	})
 
-	err := kv.RemoveFactByID(context.Background(), "present")
+	err := kv.RemoveFactByID(context.Background(), "", "present")
 
 	if !errors.Is(err, boom) {
 		t.Fatalf("want the underlying error, got %v", err)
@@ -174,7 +174,7 @@ func TestRemoveFactByIDPresentFact(t *testing.T) {
 		PrimaryKey: "present",
 	}}})
 
-	if err := kv.RemoveFactByID(context.Background(), "present"); err != nil {
+	if err := kv.RemoveFactByID(context.Background(), "", "present"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -191,7 +191,7 @@ func TestGetFactByIDWrongFieldType(t *testing.T) {
 		},
 	}}})
 
-	_, err := kv.GetFactByID(context.Background(), "present")
+	_, err := kv.GetFactByID(context.Background(), "", "present")
 
 	if !errors.Is(err, apperrors.ErrDBConvertError) {
 		t.Fatalf("want ErrDBConvertError, got %v", err)

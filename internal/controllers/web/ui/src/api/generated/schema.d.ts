@@ -136,11 +136,23 @@ export interface components {
          * @example DB_CONVERT_ERROR
          * @enum {string}
          */
-        errorCode: "DB_CONVERT_ERROR" | "ALREADY_HAS_FACT" | "CANNOT_GET_MODELS" | "GET_EMBEDDINGS" | "SUMMARIZE" | "EMBEDDINGS_QUANTITY_NOT_EQUAL_TO_FACTS_QUANTITY" | "EMPTY_EMBEDDINGS" | "FACT_DOES_NOT_EXIST" | "BAD_REQUEST" | "INTERNAL_ERROR" | "NOT_FOUND";
+        errorCode: "DB_CONVERT_ERROR" | "ALREADY_HAS_FACT" | "CANNOT_GET_MODELS" | "GET_EMBEDDINGS" | "SUMMARIZE" | "EMBEDDINGS_QUANTITY_NOT_EQUAL_TO_FACTS_QUANTITY" | "EMPTY_EMBEDDINGS" | "FACT_DOES_NOT_EXIST" | "BAD_REQUEST" | "INTERNAL_ERROR" | "NOT_FOUND" | "UNAUTHORIZED";
         /** @description Nothing when nothing to say but everything is OK */
         nothing: Record<string, never>;
     };
-    responses: never;
+    responses: {
+        /** @description The Authorization header is missing or its token is not recognised */
+        unauthorized: {
+            headers: {
+                /** @description Challenge naming the expected scheme */
+                "WWW-Authenticate"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["appError"];
+            };
+        };
+    };
     parameters: never;
     requestBodies: never;
     headers: never;
@@ -184,6 +196,7 @@ export interface operations {
                     "application/json": components["schemas"]["appError"];
                 };
             };
+            401: components["responses"]["unauthorized"];
             /** @description Failed to add a fact */
             default: {
                 headers: {
@@ -218,6 +231,7 @@ export interface operations {
                     };
                 };
             };
+            401: components["responses"]["unauthorized"];
             /** @description Fact not found */
             404: {
                 headers: {
@@ -261,6 +275,7 @@ export interface operations {
                     };
                 };
             };
+            401: components["responses"]["unauthorized"];
         };
     };
     search: {
@@ -288,6 +303,7 @@ export interface operations {
                     };
                 };
             };
+            401: components["responses"]["unauthorized"];
             /** @description Search failed */
             default: {
                 headers: {

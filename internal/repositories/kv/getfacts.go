@@ -9,7 +9,7 @@ import (
 	"github.com/pokatomnik/gomem/internal/entities/fact"
 )
 
-func (k *KV) GetFactsList(ctx context.Context, vector []float32, topK int, similarityThreshold float32) (facts []fact.FactListView, err error) {
+func (k *KV) GetFactsList(ctx context.Context, userID string, vector []float32, topK int, similarityThreshold float32) (facts []fact.FactListView, err error) {
 	collection, err := k.getCollection(ctx)
 	if err != nil {
 		return []fact.FactListView{}, err

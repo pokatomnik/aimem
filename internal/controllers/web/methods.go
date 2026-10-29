@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/pokatomnik/gomem/internal/controllers/web/server"
+	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 )
 
 type Methods struct {
@@ -14,8 +15,22 @@ type Methods struct {
 	removeFact RemoveFact
 }
 
+func (m *Methods) getUserID(ctx context.Context) (string, error) {
+	id, ok := ctx.Value(userIDKey{}).(string)
+	if !ok || id == "" {
+		return "", apperrors.ErrUserNotFound
+	}
+
+	return id, nil
+}
+
 func (m *Methods) AddFact(ctx context.Context, req *server.AddFactReq) (server.AddFactRes, error) {
-	summary, err := m.remember.Remember(ctx, req.Value.Fact)
+	userID, err := m.getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	summary, err := m.remember.Remember(ctx, userID, req.Value.Fact)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +43,12 @@ func (m *Methods) AddFact(ctx context.Context, req *server.AddFactReq) (server.A
 }
 
 func (m *Methods) GetFactByID(ctx context.Context, params server.GetFactByIDParams) (server.GetFactByIDRes, error) {
-	res, err := m.getFact.GetFact(ctx, params.FactID)
+	userID, err := m.getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := m.getFact.GetFact(ctx, userID, params.FactID)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +69,12 @@ func (m *Methods) GetFactByID(ctx context.Context, params server.GetFactByIDPara
 }
 
 func (m *Methods) Search(ctx context.Context, req *server.SearchRequestBody) (server.SearchRes, error) {
-	res, err := m.recall.Recall(ctx, req.Query)
+	userID, err := m.getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := m.recall.Recall(ctx, userID, req.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +99,13 @@ func (m *Methods) Search(ctx context.Context, req *server.SearchRequestBody) (se
 	}, nil
 }
 
-func (m *Methods) RemoveFactByID(ctx context.Context, params server.RemoveFactByIDParams) (*server.RemoveFactByIDOK, error) {
-	err := m.removeFact.RemoveFactByID(ctx, params.FactID)
+func (m *Methods) RemoveFactByID(ctx context.Context, params server.RemoveFactByIDParams) (server.RemoveFactByIDRes, error) {
+	userID, err := m.getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = m.removeFact.RemoveFactByID(ctx, userID, params.FactID)
 	if err != nil {
 		return nil, err
 	}

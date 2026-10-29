@@ -77,6 +77,8 @@ func (s ErrorCode) Validate() error {
 		return nil
 	case "NOT_FOUND":
 		return nil
+	case "UNAUTHORIZED":
+		return nil
 	default:
 		return errors.Errorf("invalid value: %v", s)
 	}
@@ -154,6 +156,29 @@ func (s *SearchResult) Validate() error {
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
 			Name:  "found",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *UnauthorizedHeaders) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.Response.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "Response",
 			Error: err,
 		})
 	}

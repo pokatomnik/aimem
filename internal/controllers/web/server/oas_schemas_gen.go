@@ -113,6 +113,31 @@ func (*AppErrorStatusCode) addFactRes()     {}
 func (*AppErrorStatusCode) getFactByIDRes() {}
 func (*AppErrorStatusCode) searchRes()      {}
 
+type BearerAuth struct {
+	Token string
+	Roles []string
+}
+
+// GetToken returns the value of Token.
+func (s *BearerAuth) GetToken() string {
+	return s.Token
+}
+
+// GetRoles returns the value of Roles.
+func (s *BearerAuth) GetRoles() []string {
+	return s.Roles
+}
+
+// SetToken sets the value of Token.
+func (s *BearerAuth) SetToken(val string) {
+	s.Token = val
+}
+
+// SetRoles sets the value of Roles.
+func (s *BearerAuth) SetRoles(val []string) {
+	s.Roles = val
+}
+
 // Ref: #/components/schemas/errorCode
 type ErrorCode string
 
@@ -128,6 +153,7 @@ const (
 	ErrorCodeBADREQUEST                                ErrorCode = "BAD_REQUEST"
 	ErrorCodeINTERNALERROR                             ErrorCode = "INTERNAL_ERROR"
 	ErrorCodeNOTFOUND                                  ErrorCode = "NOT_FOUND"
+	ErrorCodeUNAUTHORIZED                              ErrorCode = "UNAUTHORIZED"
 )
 
 // AllValues returns all ErrorCode values.
@@ -144,6 +170,7 @@ func (ErrorCode) AllValues() []ErrorCode {
 		ErrorCodeBADREQUEST,
 		ErrorCodeINTERNALERROR,
 		ErrorCodeNOTFOUND,
+		ErrorCodeUNAUTHORIZED,
 	}
 }
 
@@ -171,6 +198,8 @@ func (s ErrorCode) MarshalText() ([]byte, error) {
 	case ErrorCodeINTERNALERROR:
 		return []byte(s), nil
 	case ErrorCodeNOTFOUND:
+		return []byte(s), nil
+	case ErrorCodeUNAUTHORIZED:
 		return []byte(s), nil
 	default:
 		return nil, errors.Errorf("invalid value: %q", s)
@@ -212,6 +241,9 @@ func (s *ErrorCode) UnmarshalText(data []byte) error {
 		return nil
 	case ErrorCodeNOTFOUND:
 		*s = ErrorCodeNOTFOUND
+		return nil
+	case ErrorCodeUNAUTHORIZED:
+		*s = ErrorCodeUNAUTHORIZED
 		return nil
 	default:
 		return errors.Errorf("invalid value: %q", data)
@@ -366,6 +398,8 @@ func (s *RemoveFactByIDOK) SetValue(val Nothing) {
 	s.Value = val
 }
 
+func (*RemoveFactByIDOK) removeFactByIDRes() {}
+
 type SearchOK struct {
 	Value SearchResult `json:"value"`
 }
@@ -448,3 +482,34 @@ func (s *SearchResultItem) SetCreatedAt(val time.Time) {
 func (s *SearchResultItem) SetSummary(val string) {
 	s.Summary = val
 }
+
+// UnauthorizedHeaders wraps AppError with response headers.
+type UnauthorizedHeaders struct {
+	WWWAuthenticate OptString
+	Response        AppError
+}
+
+// GetWWWAuthenticate returns the value of WWWAuthenticate.
+func (s *UnauthorizedHeaders) GetWWWAuthenticate() OptString {
+	return s.WWWAuthenticate
+}
+
+// GetResponse returns the value of Response.
+func (s *UnauthorizedHeaders) GetResponse() AppError {
+	return s.Response
+}
+
+// SetWWWAuthenticate sets the value of WWWAuthenticate.
+func (s *UnauthorizedHeaders) SetWWWAuthenticate(val OptString) {
+	s.WWWAuthenticate = val
+}
+
+// SetResponse sets the value of Response.
+func (s *UnauthorizedHeaders) SetResponse(val AppError) {
+	s.Response = val
+}
+
+func (*UnauthorizedHeaders) addFactRes()        {}
+func (*UnauthorizedHeaders) getFactByIDRes()    {}
+func (*UnauthorizedHeaders) removeFactByIDRes() {}
+func (*UnauthorizedHeaders) searchRes()         {}

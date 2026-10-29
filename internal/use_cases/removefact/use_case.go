@@ -4,7 +4,7 @@ import "context"
 
 type (
 	store interface {
-		RemoveFactByID(ctx context.Context, id string) error
+		RemoveFactByID(ctx context.Context, userID, factID string) error
 	}
 
 	RemoveFact struct {
@@ -16,6 +16,6 @@ func New(s store) *RemoveFact {
 	return &RemoveFact{s}
 }
 
-func (r *RemoveFact) RemoveFactByID(ctx context.Context, id string) error {
-	return r.s.RemoveFactByID(ctx, id)
+func (r *RemoveFact) RemoveFactByID(ctx context.Context, userID, factID string) error {
+	return r.s.RemoveFactByID(ctx, userID, factID)
 }

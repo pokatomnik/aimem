@@ -14,7 +14,7 @@ type (
 	}
 
 	store interface {
-		AddFact(ctx context.Context, vector []float32, summary, content string) error
+		AddFact(ctx context.Context, userID string, vector []float32, summary, content string) error
 	}
 
 	Remember struct {
@@ -27,7 +27,7 @@ func New(e ai, s store) *Remember {
 	return &Remember{e, s}
 }
 
-func (r *Remember) Remember(ctx context.Context, fact string) (string, error) {
+func (r *Remember) Remember(ctx context.Context, userID string, fact string) (string, error) {
 	summary, embeddings, err := r.getEmbeddingsAndSummary(ctx, fact)
 	if err != nil {
 		return "", err
@@ -38,7 +38,7 @@ func (r *Remember) Remember(ctx context.Context, fact string) (string, error) {
 	}
 
 	embedding := embeddings[0]
-	err = r.st.AddFact(ctx, embedding, summary, fact)
+	err = r.st.AddFact(ctx, userID, embedding, summary, fact)
 
 	if err != nil {
 		return "", err

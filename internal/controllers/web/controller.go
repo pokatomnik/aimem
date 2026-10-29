@@ -14,12 +14,13 @@ import (
 //go:generate go run github.com/ogen-go/ogen/cmd/ogen@v1.24.0 --target server -package server --clean openapi.yaml
 
 type Controller struct {
-	cfg        Config
-	remember   Remember
-	recall     Recall
-	getFact    GetFact
-	removeFact RemoveFact
-	mcpHandler http.Handler
+	cfg            Config
+	remember       Remember
+	recall         Recall
+	getFact        GetFact
+	removeFact     RemoveFact
+	mcpHandler     http.Handler
+	authentication Authentication
 }
 
 const defaultWebHost = "127.0.0.1:8888"
@@ -31,15 +32,30 @@ func New(
 	getFact GetFact,
 	removeFact RemoveFact,
 	mcpHandler http.Handler,
+	authentication Authentication,
 ) *Controller {
 	return &Controller{
-		cfg:        cfg,
-		remember:   remember,
-		recall:     recall,
-		getFact:    getFact,
-		removeFact: removeFact,
-		mcpHandler: mcpHandler,
+		cfg:            cfg,
+		remember:       remember,
+		recall:         recall,
+		getFact:        getFact,
+		removeFact:     removeFact,
+		mcpHandler:     mcpHandler,
+		authentication: authentication,
 	}
+}
+
+func (c *Controller) HandleBearerAuth(
+	ctx context.Context,
+	operationName server.OperationName,
+	t server.BearerAuth,
+) (context.Context, error) {
+	u, err := c.authentication.GetUserByToken(ctx, t.Token)
+	if err != nil {
+		return ctx, err
+	}
+
+	return context.WithValue(ctx, userIDKey{}, u.ID), nil
 }
 
 func (c *Controller) Run(
@@ -54,7 +70,7 @@ func (c *Controller) Run(
 		recall:     c.recall,
 		getFact:    c.getFact,
 		removeFact: c.removeFact,
-	}, opts...)
+	}, c, opts...)
 	if err != nil {
 		return err
 	}

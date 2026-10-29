@@ -18,12 +18,12 @@ backend everything runs on your machine.
 ## Features
 
 - `init` — write a default configuration file.
-- `remember` — save a fact; it is summarized and embedded.
-- `recall` — find facts semantically similar to a question.
-- `fact` — print a fact by its ID.
-- `remove` — delete a fact by its ID.
-- `import` — bulk-import facts from JSON Lines read from stdin.
 - `web` — serve the HTTP API, the browser UI, and the MCP endpoint from one port.
+- Through the UI, the API or the MCP tools: save a fact (summarized and
+  embedded), search by meaning, read one fact in full, delete a fact.
+- Per-user storage with bearer-token authentication: every request is resolved to
+  a user, and with Qdrant each user gets a separate collection.
+- Two interchangeable storage backends: an embedded vector index, or Qdrant.
 
 ## Requirements
 
@@ -135,9 +135,47 @@ no error. Compare your file against the table when something behaves oddly.
 
 > `dimensions` must match the number of values returned by the embedding model.
 > If you change it after the database has been created, recreate it — delete
-> `~/.aimem` for the embedded backend, or drop the Qdrant collection.
+> `~/.aimem` for the embedded backend, or drop the Qdrant collections.
 
-### 3. Start the vector database (Qdrant)
+### 3. Add users and tokens
+
+Every API request and every MCP tool call is authenticated, so a configuration
+without users serves nothing but `401`: the server needs at least one token to
+know whose memory a request belongs to.
+
+`aimem init` does not write this section — add it to `~/.config/aimem/config.toml`
+by hand, after the main keys:
+
+```toml
+[[users]]
+id = "alice"
+tokens = ["a-long-random-string"]
+
+[[users]]
+id = "bob"
+tokens = ["another-random-string", "a-second-token-for-bob"]
+```
+
+| Key      | Description                                                         |
+| -------- | ------------------------------------------------------------------- |
+| `id`     | Identifies the user. It becomes part of the Qdrant collection name. |
+| `tokens` | Any number of tokens; each one authenticates as this user.          |
+
+A user can hold several tokens, which is how you rotate one without downtime:
+add the new token, switch the client, then remove the old one. The lookup is a
+linear scan over this file on every request — it is small by design and read from
+disk each time, so an edit takes effect without restarting the server.
+
+> `id` becomes part of a Qdrant collection name (`memory-<id>`), and Qdrant
+> accepts only ASCII letters, digits, `_` and `-` there. Use such an identifier;
+> anything else produces a collection the adapter cannot address.
+
+How the two backends use the id differs: Qdrant keeps one collection per user,
+so users never see each other's facts. The embedded backend ignores it entirely —
+`~/.aimem` is local files for a single operator, and every token reads the same
+data there.
+
+### 4. Start the vector database (Qdrant)
 
 The repository ships a `docker-compose.yaml` that runs [Qdrant](https://qdrant.tech)
 with default settings, published on loopback only. All it needs is Docker:
@@ -209,11 +247,22 @@ module's schema, so the repository keeps its contract (`AddFact`, `GetFactByID`,
 
 | Item         | Value                                                                        |
 | ------------ | ---------------------------------------------------------------------------- |
-| Collection   | `memory`                                                                     |
+| Collection   | `memory` for an empty user, `memory-<userID>` otherwise                      |
 | Distance     | `Cosine`                                                                     |
 | Vector       | `embedding`, size `dimensions` from `config.toml` (default `768`), `float32` |
 | Point ID     | derived from the fact's SHA-256 — Qdrant takes only a UUID or `u64`          |
 | Payload keys | `summary`, `fact`, `created_at` (all strings)                                |
+
+Storage is partitioned per user: each userID gets its own collection with this
+schema, created on first use. An empty userID keeps using the bare `memory`
+collection, so a single-user setup and data written before users existed still
+resolve. Because the point ID is derived from the fact's text alone, two users
+storing the same text would collide in one shared collection — the per-user
+collection is what keeps them apart, and it also means a fact belonging to
+another user is simply absent rather than forbidden.
+
+The embedded backend ignores the same userID: it is local files, single user.
+The two backends share the public contract, not the storage layout.
 
 Two details differ from xvec and are handled by the adapter, not by this compose
 file. The point ID format is one of them — see
@@ -303,24 +352,42 @@ far rarer than reads, so the window is accepted rather than patched.
 
 ## Usage
 
+Two commands remain: `init`, which writes the configuration, and `web`, which
+serves the API, the UI and the MCP endpoint from one port.
+
 ```sh
 # Write a default configuration file (prompts before overwriting).
+# Edit it afterwards to add users and tokens — see step 3 above.
 aimem init
 
-# Save a fact. The summary is printed back.
-aimem remember "The production database is hosted in Frankfurt"
+# Serve the HTTP API, the browser UI and the MCP endpoint on webHttpHost.
+aimem web
+```
 
-# Find related facts, ordered by similarity.
-aimem recall "Where is the production database?"
+Remembering, searching, reading and removing facts are done through the UI or
+the API, not through the CLI. An MCP client gets the same four operations as
+tools.
 
-# Show a single fact by ID (IDs are printed by recall).
-aimem fact 4a44dc15364204a80fe80e9039455cc1...
+All API calls must carry `Authorization: Bearer <token>`; a request without a
+valid token is answered with `401` and the appError body `{"error":
+"UNAUTHORIZED"}`.
 
-# Delete a fact by ID. This is irreversible.
-aimem remove 4a44dc15364204a80fe80e9039455cc1...
+```sh
+# Save a fact. The summary comes back in the response.
+curl -X POST http://127.0.0.1:8888/api/v1/fact \
+  -H 'Authorization: Bearer a-long-random-string' \
+  -H 'Content-Type: application/json' \
+  -d '{"value":{"fact":"The production database is hosted in Frankfurt"}}'
 
-# Import facts from JSON Lines (one JSON object per line).
-aimem import < facts.jsonl
+# Search by meaning; returns summaries with their IDs.
+curl -X POST http://127.0.0.1:8888/api/v1/search \
+  -H 'Authorization: Bearer a-long-random-string' \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"Where is the production database?"}'
+
+# Read one fact in full by an ID from a search result.
+curl http://127.0.0.1:8888/api/v1/fact/4a44dc15364204a80fe80e9039455cc1... \
+  -H 'Authorization: Bearer a-long-random-string'
 ```
 
 ### MCP server
@@ -342,10 +409,16 @@ usage instructions are embedded from
 `internal/adapters/servers/mcp/INSTRUCTIONS.md` and sent to the client on
 initialization.
 
-The endpoint has no authentication of its own. `webHttpHost` defaults to
-`127.0.0.1:8888`, and the MCP library rejects a non-loopback `Host` header on a
-loopback listener; binding `webHttpHost` to a non-loopback address publishes the
-MCP server to the network unprotected.
+The MCP tools authenticate the same way as the REST API: every `tools/call`
+must carry an `Authorization: Bearer <token>` header, and the token decides which
+user's facts the call reads or writes. The token comes from the `[[users]]`
+entries of `config.toml` (see [Users and tokens](#users-and-tokens)); a call with
+a missing or unknown token is answered with an error and touches no data.
+
+`webHttpHost` defaults to `127.0.0.1:8888`, and the MCP library rejects a
+non-loopback `Host` header on a loopback listener; binding `webHttpHost` to a
+non-loopback address publishes the MCP server to the network, so make sure the
+tokens are meaningful before you do.
 
 ### Web API and UI
 
@@ -381,6 +454,7 @@ the mapping:
 | Status | When                                                                      |
 | ------ | ------------------------------------------------------------------------- |
 | `400`  | Malformed request — bad JSON, a body failing validation, a short `query`. |
+| `401`  | The `Authorization` header is missing, or its token is not in the config. |
 | `404`  | Unknown route, or a fact that does not exist (`GET` and `DELETE` alike).  |
 | `409`  | The fact already exists (`ALREADY_HAS_FACT`).                             |
 | `422`  | Ollama returned no usable embedding.                                      |
@@ -392,18 +466,29 @@ Any path under `/api/` is answered as JSON, so a version typo like
 prefixes are matched in this order: `/mcp`, then `/api/`, then everything else,
 which is the UI.
 
-### Import format
+Authentication is declared once for the whole API: every operation inherits the
+`bearerAuth` requirement from the document root, so `401` applies to all four
+routes. It is checked before the body is decoded, which is why a request with no
+token never reaches validation and cannot distinguish "bad JSON" from "no
+credentials" — it simply gets `401`.
 
-Each input line must be a JSON object with a `data` field:
+### Bulk insertion
 
-```json
-{"data":"The production database is hosted in Frankfurt"}
-{"data":"Deploys run on every weekday at 10:00 UTC"}
+There is no import command and no bulk endpoint. Insert facts one request at a
+time:
+
+```sh
+jq -r '.data' facts.jsonl | while IFS= read -r line; do
+  curl -s -X POST http://127.0.0.1:8888/api/v1/fact \
+    -H "Authorization: Bearer $TOKEN" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -Rn --arg f "$line" '{value:{fact:$f}}')"
+done
 ```
 
-Facts are identified by a SHA-256 hash of their content, so importing the same
-fact twice fails with `db already has fact`. Empty lines are not skipped — make
-sure the input contains valid JSON on every line.
+Facts are identified by a SHA-256 hash of their content, so inserting the same
+text twice fails with `db already has fact` — a `409` on the API. Retrying a
+batch is therefore safe: the duplicates are rejected and the rest go through.
 
 ## Data location
 
@@ -416,10 +501,10 @@ With the **embedded** backend all data is stored in `~/.aimem`:
 collection but leaves the line in the log. Delete the whole directory to start
 from scratch.
 
-With **Qdrant** the facts live in the collection described above and nothing is
+With **Qdrant** the facts live in the collections described above and nothing is
 written to `~/.aimem`. Note that `plain.jsonl` is a feature of the embedded
 backend only — the Qdrant repository does not append to it. To reset, drop the
-collection; `docker compose down -v` wipes the bundled one entirely.
+collections; `docker compose down -v` wipes the bundled instance entirely.
 
 Stored records are immutable on both backends — see
 [Records are immutable](#records-are-immutable).

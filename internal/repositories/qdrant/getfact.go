@@ -10,12 +10,17 @@ import (
 )
 
 // GetFactByID returns one stored fact in full.
-func (q *Qdrant) GetFactByID(ctx context.Context, id string) (fact.FactFullView, error) {
-	if err := q.ensureCollection(ctx); err != nil {
+//
+// The lookup runs against the caller's own collection, so an ID that belongs to
+// another user is not found and comes back as apperrors.ErrFactDoesNotExist. That
+// is deliberate: a different user's fact should be indistinguishable from one
+// that was never stored, so the answer leaks nothing about what exists elsewhere.
+func (q *Qdrant) GetFactByID(ctx context.Context, userID, factID string) (fact.FactFullView, error) {
+	if err := q.ensureCollection(ctx, userID); err != nil {
 		return fact.FactFullView{}, err
 	}
 
-	pointID, err := pointIDFromExternal(id)
+	pointID, err := pointIDFromExternal(factID)
 	if err != nil {
 		return fact.FactFullView{}, err
 	}
@@ -28,7 +33,7 @@ func (q *Qdrant) GetFactByID(ctx context.Context, id string) (fact.FactFullView,
 
 	var points []retrievedPoint
 
-	if err := q.do(ctx, http.MethodPost, pathPoints, nil, request, &points); err != nil {
+	if err := q.do(ctx, http.MethodPost, pathPoints(userID), nil, request, &points); err != nil {
 		return fact.FactFullView{}, err
 	}
 

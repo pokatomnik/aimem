@@ -36,7 +36,7 @@ func (UnimplementedHandler) GetFactByID(ctx context.Context, params GetFactByIDP
 // Remove fact by ID.
 //
 // DELETE /api/v1/fact/{factID}
-func (UnimplementedHandler) RemoveFactByID(ctx context.Context, params RemoveFactByIDParams) (r *RemoveFactByIDOK, _ error) {
+func (UnimplementedHandler) RemoveFactByID(ctx context.Context, params RemoveFactByIDParams) (r RemoveFactByIDRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

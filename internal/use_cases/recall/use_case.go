@@ -14,7 +14,7 @@ type (
 	}
 
 	store interface {
-		GetFactsList(ctx context.Context, vector []float32, topK int, similarityThreshold float32) (facts []fact.FactListView, err error)
+		GetFactsList(ctx context.Context, userID string, vector []float32, topK int, similarityThreshold float32) (facts []fact.FactListView, err error)
 	}
 
 	config interface {
@@ -33,7 +33,7 @@ func New(e embedder, s store, c config) *Recall {
 	return &Recall{e, s, c}
 }
 
-func (r *Recall) Recall(ctx context.Context, question string) ([]fact.FactListView, error) {
+func (r *Recall) Recall(ctx context.Context, userID string, question string) ([]fact.FactListView, error) {
 	embeddings, err := r.e.GetEmbeddings(ctx, question)
 	if err != nil {
 		return []fact.FactListView{}, err
@@ -45,6 +45,7 @@ func (r *Recall) Recall(ctx context.Context, question string) ([]fact.FactListVi
 
 	facts, err := r.s.GetFactsList(
 		ctx,
+		userID,
 		[]float32(embeddings[0]),
 		r.c.GetTopK(),
 		r.c.GetSimilarityThreshold(),

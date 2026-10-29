@@ -12,10 +12,11 @@ import (
 var instructions string
 
 type MCPDeps struct {
-	Remember   mcpdeps.Remember
-	Recall     mcpdeps.Recall
-	GetFact    mcpdeps.GetFact
-	RemoveFact mcpdeps.RemoveFact
+	Remember       mcpdeps.Remember
+	Recall         mcpdeps.Recall
+	GetFact        mcpdeps.GetFact
+	RemoveFact     mcpdeps.RemoveFact
+	Authentication mcpdeps.Authentication
 }
 
 func CreateServer(deps MCPDeps) (*mcp.Server, error) {
@@ -31,22 +32,22 @@ func CreateServer(deps MCPDeps) (*mcp.Server, error) {
 
 	server := mcp.NewServer(implementation, options)
 
-	toolRemember, rememberHandler, err := tools.ToolRemember(deps.Remember)
+	toolRemember, rememberHandler, err := tools.ToolRemember(deps.Authentication, deps.Remember)
 	if err != nil {
 		return nil, err
 	}
 
-	toolRecall, recallHandler, err := tools.ToolRecall(deps.Recall)
+	toolRecall, recallHandler, err := tools.ToolRecall(deps.Authentication, deps.Recall)
 	if err != nil {
 		return nil, err
 	}
 
-	toolGetFact, getFactHandler, err := tools.ToolGetFact(deps.GetFact)
+	toolGetFact, getFactHandler, err := tools.ToolGetFact(deps.Authentication, deps.GetFact)
 	if err != nil {
 		return nil, err
 	}
 
-	toolRemoveFact, removeFactHandler, err := tools.ToolRemoveFact(deps.RemoveFact)
+	toolRemoveFact, removeFactHandler, err := tools.ToolRemoveFact(deps.Authentication, deps.RemoveFact)
 	if err != nil {
 		return nil, err
 	}

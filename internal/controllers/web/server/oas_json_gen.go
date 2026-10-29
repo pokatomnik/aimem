@@ -445,6 +445,8 @@ func (s *ErrorCode) Decode(d *jx.Decoder) error {
 		*s = ErrorCodeINTERNALERROR
 	case ErrorCodeNOTFOUND:
 		*s = ErrorCodeNOTFOUND
+	case ErrorCodeUNAUTHORIZED:
+		*s = ErrorCodeUNAUTHORIZED
 	default:
 		*s = ErrorCode(v)
 	}

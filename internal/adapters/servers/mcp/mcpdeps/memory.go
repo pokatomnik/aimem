@@ -4,22 +4,27 @@ import (
 	"context"
 
 	"github.com/pokatomnik/gomem/internal/entities/fact"
+	"github.com/pokatomnik/gomem/internal/entities/user"
 )
 
 type (
 	Remember interface {
-		Remember(ctx context.Context, fact string) (string, error)
+		Remember(ctx context.Context, userID, fact string) (string, error)
 	}
 
 	Recall interface {
-		Recall(ctx context.Context, question string) ([]fact.FactListView, error)
+		Recall(ctx context.Context, userID, question string) ([]fact.FactListView, error)
 	}
 
 	GetFact interface {
-		GetFact(ctx context.Context, id string) (fact.FactFullView, error)
+		GetFact(ctx context.Context, userID, factID string) (fact.FactFullView, error)
 	}
 
 	RemoveFact interface {
-		RemoveFactByID(ctx context.Context, id string) error
+		RemoveFactByID(ctx context.Context, userID, factID string) error
+	}
+
+	Authentication interface {
+		GetUserByToken(ctx context.Context, token string) (user.User, error)
 	}
 )

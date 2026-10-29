@@ -9,7 +9,7 @@ import (
 	"github.com/pokatomnik/gomem/internal/entities/fact"
 )
 
-func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, error) {
+func (k *KV) GetFactByID(ctx context.Context, userID, factID string) (fact.FactFullView, error) {
 	collection, err := k.getCollection(ctx)
 	if err != nil {
 		return fact.FactFullView{}, err
@@ -18,7 +18,7 @@ func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, err
 
 	result, err := collection.Fetch(
 		ctx,
-		[]string{id},
+		[]string{factID},
 		xvec.Projection{
 			OutputFields: []string{keyFieldCreatedAt, keyFieldSummary, keyFieldFact},
 		},
@@ -64,7 +64,7 @@ func (k *KV) GetFactByID(ctx context.Context, id string) (fact.FactFullView, err
 	}
 
 	return fact.FactFullView{
-		ID:        id,
+		ID:        factID,
 		CreatedAt: createdAt,
 		Summary:   summary,
 		Content:   content,

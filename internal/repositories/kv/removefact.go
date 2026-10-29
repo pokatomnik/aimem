@@ -8,14 +8,14 @@ import (
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 )
 
-func (k *KV) RemoveFactByID(ctx context.Context, id string) error {
+func (k *KV) RemoveFactByID(ctx context.Context, userID, factID string) error {
 	collection, err := k.getCollection(ctx)
 	if err != nil {
 		return err
 	}
 	defer collection.Close()
 
-	result, err := collection.Delete(ctx, []string{id})
+	result, err := collection.Delete(ctx, []string{factID})
 	// xvec reports a missing key as a batch error carrying ErrNotFound, and puts
 	// the same cause into the per-key result. Both mean "no such fact".
 	if errors.Is(err, xvec.ErrNotFound) {

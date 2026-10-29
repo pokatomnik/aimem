@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
@@ -17,7 +18,7 @@ func TestGetFactsListDoesNotInvertTheScore(t *testing.T) {
 	// applied the same inversion, the 0.9 result would become 0.1 and be filtered
 	// out by a 0.5 threshold, while the 0.1 result would become 0.9 and pass.
 	repository, _ := newTestRepository(collectionHandlers(func(request recordedRequest) (int, string) {
-		if request.Path != pathPointsQuery {
+		if request.Path != pathPointsQuery(testUserID) {
 			return http.StatusNotFound, `{"status":{"error":"unexpected path"}}`
 		}
 
@@ -32,7 +33,7 @@ func TestGetFactsListDoesNotInvertTheScore(t *testing.T) {
 		}`
 	}))
 
-	facts, err := repository.GetFactsList(context.Background(), []float32{1, 0, 0}, 5, 0.5)
+	facts, err := repository.GetFactsList(context.Background(), testUserID, []float32{1, 0, 0}, 5, 0.5)
 	if err != nil {
 		t.Fatalf("GetFactsList returned error: %v", err)
 	}
@@ -53,7 +54,7 @@ func TestGetFactsListSendsNamedVectorAndTopK(t *testing.T) {
 		return http.StatusOK, `{"result":{"points":[]},"status":"ok"}`
 	}))
 
-	if _, err := repository.GetFactsList(context.Background(), []float32{1, 0, 0}, 7, 0.5); err != nil {
+	if _, err := repository.GetFactsList(context.Background(), testUserID, []float32{1, 0, 0}, 7, 0.5); err != nil {
 		t.Fatalf("GetFactsList returned error: %v", err)
 	}
 
@@ -82,7 +83,7 @@ func TestGetFactsListRejectsNonPositiveTopK(t *testing.T) {
 		return http.StatusOK, `{"result":{"points":[]},"status":"ok"}`
 	}))
 
-	if _, err := repository.GetFactsList(context.Background(), []float32{1, 0, 0}, 0, 0.5); err == nil {
+	if _, err := repository.GetFactsList(context.Background(), testUserID, []float32{1, 0, 0}, 0, 0.5); err == nil {
 		t.Fatalf("expected an error for topK = 0")
 	}
 }
@@ -97,7 +98,7 @@ func TestGetFactsListReportsConversionErrors(t *testing.T) {
 		}`
 	}))
 
-	_, err := repository.GetFactsList(context.Background(), []float32{1, 0, 0}, 5, 0.5)
+	_, err := repository.GetFactsList(context.Background(), testUserID, []float32{1, 0, 0}, 5, 0.5)
 	if !errors.Is(err, apperrors.ErrDBConvertError) {
 		t.Fatalf("err = %v, want ErrDBConvertError", err)
 	}
@@ -107,14 +108,14 @@ func TestAddFactStoresPayloadAndNamedVector(t *testing.T) {
 	t.Parallel()
 
 	repository, transport := newTestRepository(collectionHandlers(func(request recordedRequest) (int, string) {
-		if request.Path == pathPoints {
+		if request.Path == pathPoints(testUserID) {
 			return http.StatusOK, `{"result":[],"status":"ok"}`
 		}
 
 		return http.StatusOK, `{"result":{"status":"completed"},"status":"ok"}`
 	}))
 
-	err := repository.AddFact(context.Background(), []float32{1, 2, 3}, "a summary", "the fact")
+	err := repository.AddFact(context.Background(), testUserID, []float32{1, 2, 3}, "a summary", "the fact")
 	if err != nil {
 		t.Fatalf("AddFact returned error: %v", err)
 	}
@@ -170,7 +171,7 @@ func TestAddFactRejectsDuplicate(t *testing.T) {
 		}`
 	}))
 
-	err := repository.AddFact(context.Background(), []float32{1, 2, 3}, "summary", "the fact")
+	err := repository.AddFact(context.Background(), testUserID, []float32{1, 2, 3}, "summary", "the fact")
 	if !errors.Is(err, apperrors.ErrAlreadyHasFact) {
 		t.Fatalf("err = %v, want ErrAlreadyHasFact", err)
 	}
@@ -194,7 +195,7 @@ func TestGetFactByIDReturnsFullView(t *testing.T) {
 		}`
 	}))
 
-	fact, err := repository.GetFactByID(context.Background(), pointID)
+	fact, err := repository.GetFactByID(context.Background(), testUserID, pointID)
 	if err != nil {
 		t.Fatalf("GetFactByID returned error: %v", err)
 	}
@@ -215,7 +216,7 @@ func TestGetFactByIDReportsMissingFact(t *testing.T) {
 		return http.StatusOK, `{"result":[],"status":"ok"}`
 	}))
 
-	_, err := repository.GetFactByID(context.Background(), "01234567-89ab-cdef-0123-456789abcdef")
+	_, err := repository.GetFactByID(context.Background(), testUserID, "01234567-89ab-cdef-0123-456789abcdef")
 	if !errors.Is(err, apperrors.ErrFactDoesNotExist) {
 		t.Fatalf("err = %v, want ErrFactDoesNotExist", err)
 	}
@@ -232,7 +233,7 @@ func TestGetFactByIDAcceptsKVDigest(t *testing.T) {
 		return http.StatusOK, `{"result":[],"status":"ok"}`
 	}))
 
-	_, err := repository.GetFactByID(context.Background(), digest)
+	_, err := repository.GetFactByID(context.Background(), testUserID, digest)
 	if !errors.Is(err, apperrors.ErrFactDoesNotExist) {
 		t.Fatalf("err = %v, want ErrFactDoesNotExist", err)
 	}
@@ -249,22 +250,22 @@ func TestRemoveFactByIDDeletesExistingPoint(t *testing.T) {
 	t.Parallel()
 
 	repository, transport := newTestRepository(collectionHandlers(func(request recordedRequest) (int, string) {
-		if request.Path == pathPoints {
+		if request.Path == pathPoints(testUserID) {
 			return http.StatusOK, `{"result":[{"id":"01234567-89ab-cdef-0123-456789abcdef","payload":{}}],"status":"ok"}`
 		}
 
 		return http.StatusOK, `{"result":{"status":"completed"},"status":"ok"}`
 	}))
 
-	err := repository.RemoveFactByID(context.Background(), "01234567-89ab-cdef-0123-456789abcdef")
+	err := repository.RemoveFactByID(context.Background(), testUserID, "01234567-89ab-cdef-0123-456789abcdef")
 	if err != nil {
 		t.Fatalf("RemoveFactByID returned error: %v", err)
 	}
 
 	last := transport.requests[len(transport.requests)-1]
 
-	if last.Path != pathPointsDelete {
-		t.Fatalf("path = %q, want %q", last.Path, pathPointsDelete)
+	if last.Path != pathPointsDelete(testUserID) {
+		t.Fatalf("path = %q, want %q", last.Path, pathPointsDelete(testUserID))
 	}
 
 	if last.Query != "wait=true" {
@@ -286,14 +287,81 @@ func TestRemoveFactByIDReportsMissingFact(t *testing.T) {
 		return http.StatusOK, `{"result":[],"status":"ok"}`
 	}))
 
-	err := repository.RemoveFactByID(context.Background(), "01234567-89ab-cdef-0123-456789abcdef")
+	err := repository.RemoveFactByID(context.Background(), testUserID, "01234567-89ab-cdef-0123-456789abcdef")
 	if !errors.Is(err, apperrors.ErrFactDoesNotExist) {
 		t.Fatalf("err = %v, want ErrFactDoesNotExist", err)
 	}
 
 	for _, request := range transport.requests {
-		if request.Path == pathPointsDelete {
+		if request.Path == pathPointsDelete(testUserID) {
 			t.Fatalf("deleted a point that does not exist")
+		}
+	}
+}
+
+func TestFactsAreScopedPerUser(t *testing.T) {
+	t.Parallel()
+
+	// A point ID is derived from the fact's text alone, so it carries no user. Two
+	// users storing the same text therefore address the same point ID, and a shared
+	// collection would answer the second AddFact with ErrAlreadyHasFact. The
+	// per-user collection is what keeps them apart.
+	const (
+		userA = "a"
+		userB = "b"
+		text  = "the same fact"
+	)
+
+	// stored records which collection received the upsert, so the second user's
+	// existence check reads its own collection instead of the first user's.
+	stored := map[string]bool{}
+
+	repository, transport := newTestRepository(func(request recordedRequest) (int, string) {
+		if strings.HasSuffix(request.Path, "/exists") {
+			return http.StatusOK, `{"result":{"exists":true},"status":"ok"}`
+		}
+
+		if request.Path == pathPoints(userA) || request.Path == pathPoints(userB) {
+			if request.Method == http.MethodPut {
+				stored[request.Path] = true
+
+				return http.StatusOK, `{"result":{"status":"completed"},"status":"ok"}`
+			}
+
+			if stored[request.Path] {
+				return http.StatusOK, `{"result":[{"id":"` + newPointID(text) + `","payload":{}}],"status":"ok"}`
+			}
+
+			return http.StatusOK, `{"result":[],"status":"ok"}`
+		}
+
+		return http.StatusNotFound, `{"status":{"error":"unexpected path"}}`
+	})
+
+	if err := repository.AddFact(context.Background(), userA, []float32{1, 0, 0}, "s", text); err != nil {
+		t.Fatalf("AddFact for the first user returned error: %v", err)
+	}
+
+	if err := repository.AddFact(context.Background(), userB, []float32{1, 0, 0}, "s", text); err != nil {
+		t.Fatalf("AddFact for the second user returned error: %v", err)
+	}
+
+	wantPaths := []string{pathPoints(userA), pathPoints(userB)}
+	upserts := make([]string, 0, len(wantPaths))
+
+	for _, request := range transport.requests {
+		if request.Method == http.MethodPut {
+			upserts = append(upserts, request.Path)
+		}
+	}
+
+	if len(upserts) != len(wantPaths) {
+		t.Fatalf("upserts = %v, want one per user", upserts)
+	}
+
+	for i, want := range wantPaths {
+		if upserts[i] != want {
+			t.Fatalf("upsert %d went to %q, want %q", i, upserts[i], want)
 		}
 	}
 }
@@ -303,16 +371,16 @@ func TestCollectionIsCreatedWhenMissing(t *testing.T) {
 
 	repository, transport := newTestRepository(func(request recordedRequest) (int, string) {
 		switch request.Path {
-		case pathCollectionExists:
+		case pathCollectionExists(testUserID):
 			return http.StatusOK, `{"result":{"exists":false},"status":"ok"}`
-		case pathCollection:
+		case pathCollection(testUserID):
 			return http.StatusOK, `{"result":true,"status":"ok"}`
 		}
 
 		return http.StatusOK, `{"result":{"points":[]},"status":"ok"}`
 	})
 
-	if _, err := repository.GetFactsList(context.Background(), []float32{1, 0, 0}, 5, 0.5); err != nil {
+	if _, err := repository.GetFactsList(context.Background(), testUserID, []float32{1, 0, 0}, 5, 0.5); err != nil {
 		t.Fatalf("GetFactsList returned error: %v", err)
 	}
 
@@ -320,7 +388,7 @@ func TestCollectionIsCreatedWhenMissing(t *testing.T) {
 	found := false
 
 	for _, request := range transport.requests {
-		if request.Path != pathCollection || request.Method != http.MethodPut {
+		if request.Path != pathCollection(testUserID) || request.Method != http.MethodPut {
 			continue
 		}
 
@@ -351,16 +419,16 @@ func TestCollectionCreationToleratesConcurrentCreate(t *testing.T) {
 
 	repository, _ := newTestRepository(func(request recordedRequest) (int, string) {
 		switch request.Path {
-		case pathCollectionExists:
+		case pathCollectionExists(testUserID):
 			return http.StatusOK, `{"result":{"exists":false},"status":"ok"}`
-		case pathCollection:
+		case pathCollection(testUserID):
 			return http.StatusConflict, `{"status":{"error":"already exists"}}`
 		}
 
 		return http.StatusOK, `{"result":{"points":[]},"status":"ok"}`
 	})
 
-	if _, err := repository.GetFactsList(context.Background(), []float32{1, 0, 0}, 5, 0.5); err != nil {
+	if _, err := repository.GetFactsList(context.Background(), testUserID, []float32{1, 0, 0}, 5, 0.5); err != nil {
 		t.Fatalf("a concurrent create should not fail the operation: %v", err)
 	}
 }
@@ -378,7 +446,7 @@ func TestAPIKeyIsSentWhenConfigured(t *testing.T) {
 		dimensions: 3,
 	}, &http.Client{Transport: transport})
 
-	if _, err := repository.GetFactsList(context.Background(), []float32{1, 0, 0}, 5, 0.5); err != nil {
+	if _, err := repository.GetFactsList(context.Background(), testUserID, []float32{1, 0, 0}, 5, 0.5); err != nil {
 		t.Fatalf("GetFactsList returned error: %v", err)
 	}
 

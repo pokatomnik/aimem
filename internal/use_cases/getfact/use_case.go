@@ -8,7 +8,7 @@ import (
 
 type (
 	store interface {
-		GetFactByID(ctx context.Context, id string) (fact.FactFullView, error)
+		GetFactByID(ctx context.Context, userID, factID string) (fact.FactFullView, error)
 	}
 
 	GetFact struct {
@@ -20,6 +20,6 @@ func New(s store) *GetFact {
 	return &GetFact{s}
 }
 
-func (r *GetFact) GetFact(ctx context.Context, id string) (fact.FactFullView, error) {
-	return r.s.GetFactByID(ctx, id)
+func (r *GetFact) GetFact(ctx context.Context, userID, factID string) (fact.FactFullView, error) {
+	return r.s.GetFactByID(ctx, userID, factID)
 }

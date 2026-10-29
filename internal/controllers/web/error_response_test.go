@@ -273,7 +273,7 @@ func TestWriteAppErrorEmptyMessage(t *testing.T) {
 // controller.go does, so a nil or rejected option fails here rather than at
 // runtime.
 func TestServerOptionsApply(t *testing.T) {
-	_, err := server.NewServer(&Methods{}, ServerOptions()...)
+	_, err := server.NewServer(&Methods{}, stubSecurity{}, ServerOptions()...)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

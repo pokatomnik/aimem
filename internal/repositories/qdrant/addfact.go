@@ -10,6 +10,11 @@ import (
 // AddFact stores one fact with its vector and summary, and reports a fact that is
 // already stored as apperrors.ErrAlreadyHasFact.
 //
+// The fact is written to the caller's own collection, so "already stored" means
+// stored by this user: the same text from another user is a different record and
+// is accepted. What the duplicate check compares is therefore scoped to the user,
+// not the server.
+//
 // Qdrant's upsert endpoint overwrites an existing point, while kv rejects the
 // duplicate; the existence check is what reproduces kv's "already has fact"
 // answer. The check and the upsert are two separate requests, so two concurrent
@@ -18,15 +23,16 @@ import (
 // the same fact, and the later write only refreshes summary and created_at —
 // content and identity never change for a given ID. The write is what makes the
 // race benign, so no lock is added here; a process-local lock would not close the
-// window for a second instance anyway.
-func (q *Qdrant) AddFact(ctx context.Context, vector []float32, summary, content string) error {
-	if err := q.ensureCollection(ctx); err != nil {
+// window for a second instance anyway, and it would have to be per collection to
+// mean anything now that one server holds several users.
+func (q *Qdrant) AddFact(ctx context.Context, userID string, vector []float32, summary, content string) error {
+	if err := q.ensureCollection(ctx, userID); err != nil {
 		return err
 	}
 
-	id := newPointID(content)
+	factID := newPointID(content)
 
-	exists, err := q.pointExists(ctx, id)
+	exists, err := q.pointExists(ctx, userID, factID)
 	if err != nil {
 		return err
 	}
@@ -37,7 +43,7 @@ func (q *Qdrant) AddFact(ctx context.Context, vector []float32, summary, content
 
 	request := upsertPointsRequest{
 		Points: []pointStruct{{
-			ID:     id,
+			ID:     factID,
 			Vector: namedVector(vector),
 			Payload: map[string]any{
 				keyFieldCreatedAt: now(),
@@ -47,20 +53,22 @@ func (q *Qdrant) AddFact(ctx context.Context, vector []float32, summary, content
 		}},
 	}
 
-	return q.do(ctx, http.MethodPut, pathPoints, writeQuery(), request, nil)
+	return q.do(ctx, http.MethodPut, pathPoints(userID), writeQuery(), request, nil)
 }
 
-// pointExists reports whether a point with this ID is stored.
-func (q *Qdrant) pointExists(ctx context.Context, id string) (bool, error) {
+// pointExists reports whether a point with this ID is stored in the user's
+// collection. A fact another user holds is not visible here, which is what makes
+// a foreign ID look absent rather than forbidden.
+func (q *Qdrant) pointExists(ctx context.Context, userID, factID string) (bool, error) {
 	request := retrievePointsRequest{
-		IDs:         []string{id},
+		IDs:         []string{factID},
 		WithPayload: false,
 		WithVector:  false,
 	}
 
 	var points []retrievedPoint
 
-	if err := q.do(ctx, http.MethodPost, pathPoints, nil, request, &points); err != nil {
+	if err := q.do(ctx, http.MethodPost, pathPoints(userID), nil, request, &points); err != nil {
 		return false, err
 	}
 

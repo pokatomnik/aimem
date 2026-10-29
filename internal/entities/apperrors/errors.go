@@ -16,4 +16,7 @@ var (
 	ErrEmbeddingsQuantityNotEqualToFactsQuantity = errors.New("embeddings quantity does not equal to facts quantity")
 	ErrEmptyEmbeddings                           = errors.New("empty embeddings list")
 	ErrFactDoesNotExist                          = errors.New("document does not exist")
+
+	// Users errors
+	ErrUserNotFound = errors.New("unauthorized")
 )

@@ -45,12 +45,13 @@ func New(config config, client *http.Client) *Qdrant {
 	}
 }
 
-// ensureCollection creates the collection when it is missing, mirroring
-// kv.getCollection, which opens the store and creates it on first use.
-func (q *Qdrant) ensureCollection(ctx context.Context) error {
+// ensureCollection creates the user's collection when it is missing, mirroring
+// kv.getCollection, which opens the store and creates it on first use. Each user
+// gets their own, so the first write of a new user also provisions their storage.
+func (q *Qdrant) ensureCollection(ctx context.Context, userID string) error {
 	var existence collectionExistence
 
-	if err := q.do(ctx, http.MethodGet, pathCollectionExists, nil, nil, &existence); err != nil {
+	if err := q.do(ctx, http.MethodGet, pathCollectionExists(userID), nil, nil, &existence); err != nil {
 		return err
 	}
 
@@ -58,10 +59,10 @@ func (q *Qdrant) ensureCollection(ctx context.Context) error {
 		return nil
 	}
 
-	return q.createCollection(ctx)
+	return q.createCollection(ctx, userID)
 }
 
-func (q *Qdrant) createCollection(ctx context.Context) error {
+func (q *Qdrant) createCollection(ctx context.Context, userID string) error {
 	request := createCollectionRequest{
 		Vectors: map[string]vectorParams{
 			keyFieldEmbedding: {
@@ -72,7 +73,7 @@ func (q *Qdrant) createCollection(ctx context.Context) error {
 		},
 	}
 
-	err := q.do(ctx, http.MethodPut, pathCollection, nil, request, nil)
+	err := q.do(ctx, http.MethodPut, pathCollection(userID), nil, request, nil)
 
 	// The MCP HTTP and web servers answer requests concurrently, so two of them
 	// can decide to create the collection at the same moment. Qdrant rejects the

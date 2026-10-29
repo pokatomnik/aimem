@@ -15,18 +15,13 @@ import (
 	aInputPackage "github.com/pokatomnik/gomem/internal/adapters/input"
 	aOllamaPackage "github.com/pokatomnik/gomem/internal/adapters/ollama"
 	aMCPHTTPPackage "github.com/pokatomnik/gomem/internal/adapters/servers/http"
-	cmdConsumePackage "github.com/pokatomnik/gomem/internal/controllers/cli/consume"
-	cmdGetFactPackage "github.com/pokatomnik/gomem/internal/controllers/cli/getfact"
 	cmdInitPackage "github.com/pokatomnik/gomem/internal/controllers/cli/init"
-	cmdRecallPackage "github.com/pokatomnik/gomem/internal/controllers/cli/recall"
-	cmdRememberPackage "github.com/pokatomnik/gomem/internal/controllers/cli/remember"
-	cmdRemoveFactPackage "github.com/pokatomnik/gomem/internal/controllers/cli/removefact"
 	cmdRootPackage "github.com/pokatomnik/gomem/internal/controllers/cli/root"
 	cmdWebCLIPackage "github.com/pokatomnik/gomem/internal/controllers/cli/web"
 	cmdWebPackage "github.com/pokatomnik/gomem/internal/controllers/web"
 	rKVPackage "github.com/pokatomnik/gomem/internal/repositories/kv"
 	rQdrantPackage "github.com/pokatomnik/gomem/internal/repositories/qdrant"
-	ucConsumePackage "github.com/pokatomnik/gomem/internal/use_cases/consume"
+	rUsersPackage "github.com/pokatomnik/gomem/internal/repositories/users"
 	ucGetFactPackage "github.com/pokatomnik/gomem/internal/use_cases/getfact"
 	ucInitPackage "github.com/pokatomnik/gomem/internal/use_cases/init"
 	ucRecallPackage "github.com/pokatomnik/gomem/internal/use_cases/recall"
@@ -69,6 +64,7 @@ func scaffold() (*cobra.Command, error) {
 
 	embeddedDB := rKVPackage.New(cfg, path.Join(userHome, ".aimem"))
 	qdrantDB := rQdrantPackage.New(cfg, client)
+	users := rUsersPackage.New()
 
 	aOllama := aOllamaPackage.New(client, cfg)
 
@@ -84,10 +80,11 @@ func scaffold() (*cobra.Command, error) {
 	}
 
 	mcpDeps := mcp.MCPDeps{
-		Remember:   rem,
-		Recall:     rec,
-		GetFact:    fac,
-		RemoveFact: del,
+		Remember:       rem,
+		Recall:         rec,
+		GetFact:        fac,
+		RemoveFact:     del,
+		Authentication: users,
 	}
 
 	aMCPHTTP, err := aMCPHTTPPackage.TryCreate(mcpDeps)
@@ -95,25 +92,13 @@ func scaffold() (*cobra.Command, error) {
 		return nil, err
 	}
 
-	con := ucConsumePackage.New(aOllama, embeddedDB, aInput)
-	if cfg.IsQdrantConfigured() {
-		con = ucConsumePackage.New(aOllama, qdrantDB, aInput)
-	}
-
-	remember := cmdRememberPackage.RememberCmd(rem)
-	recall := cmdRecallPackage.RecallCmd(rec)
-	getFact := cmdGetFactPackage.GetFactCmd(fac)
-	removeFact := cmdRemoveFactPackage.RemoveFactCmd(del)
-
-	webController := cmdWebPackage.New(cfg, rem, rec, fac, del, aMCPHTTP)
-
-	consume := cmdConsumePackage.Consume(con)
+	webController := cmdWebPackage.New(cfg, rem, rec, fac, del, aMCPHTTP, users)
 
 	web := cmdWebCLIPackage.NewWebController(webController)
 
 	cmdInitPackage := cmdInitPackage.GetInitCmd(init)
 
-	root := cmdRootPackage.RootCmd(remember, recall, getFact, removeFact, consume, web, cmdInitPackage)
+	root := cmdRootPackage.RootCmd(web, cmdInitPackage)
 
 	return root, nil
 }

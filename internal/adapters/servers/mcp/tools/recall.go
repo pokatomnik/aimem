@@ -21,7 +21,7 @@ type (
 	}
 )
 
-func ToolRecall(r mcpdeps.Recall) (
+func ToolRecall(a mcpdeps.Authentication, r mcpdeps.Recall) (
 	mcp.Tool,
 	mcp.ToolHandlerFor[recallInput, recallOutput],
 	error,
@@ -44,7 +44,12 @@ func ToolRecall(r mcpdeps.Recall) (
 		recallOutput,
 		error,
 	) {
-		facts, err := r.Recall(ctx, input.Query)
+		userID, err := authenticate(ctx, req, a)
+		if err != nil {
+			return &mcp.CallToolResult{IsError: true}, recallOutput{}, err
+		}
+
+		facts, err := r.Recall(ctx, userID, input.Query)
 		if err != nil {
 			return &mcp.CallToolResult{IsError: true}, recallOutput{}, err
 		}

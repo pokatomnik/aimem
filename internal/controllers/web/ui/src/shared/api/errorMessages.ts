@@ -25,6 +25,7 @@ export const ERROR_MESSAGES = {
   BAD_REQUEST: "Invalid request",
   INTERNAL_ERROR: "Internal server error",
   NOT_FOUND: "Not found",
+  UNAUTHORIZED: "Not authorized. Check the token in the `Authorization` header",
   NETWORK_ERROR: "Server is unreachable. Make sure `aimem web` is running",
   UNKNOWN: "Something went wrong",
 } as const satisfies Record<ErrorCode, string>;

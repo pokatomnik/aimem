@@ -11,10 +11,10 @@ import (
 // interfaces they declare in internal/use_cases. A *Qdrant must satisfy it, which
 // is what makes this repository a drop-in replacement for kv.
 type store interface {
-	AddFact(ctx context.Context, vector []float32, summary, content string) error
-	GetFactByID(ctx context.Context, id string) (fact.FactFullView, error)
-	GetFactsList(ctx context.Context, vector []float32, topK int, similarityThreshold float32) (facts []fact.FactListView, err error)
-	RemoveFactByID(ctx context.Context, id string) error
+	AddFact(ctx context.Context, userID string, vector []float32, summary, content string) error
+	GetFactByID(ctx context.Context, userID, factID string) (fact.FactFullView, error)
+	GetFactsList(ctx context.Context, userID string, vector []float32, topK int, similarityThreshold float32) (facts []fact.FactListView, err error)
+	RemoveFactByID(ctx context.Context, userID, factID string) error
 }
 
 // The assertion is the test: it fails to compile if a signature drifts from the
