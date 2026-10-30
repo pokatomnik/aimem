@@ -118,3 +118,25 @@ describe("createMemoryTokenStorage", () => {
     expect(storage.current()).toBeUndefined();
   });
 });
+
+describe("unsendable tokens", () => {
+  it("does not hand back a token the browser cannot put in a header", () => {
+    // Regression: a Cyrillic token was stored happily and then made every
+    // request throw before it left, reported as "server unreachable". Reading
+    // it back as absent means the gate asks again, which is the visible truth.
+    const backing = createFakeStorage();
+    const storage = createTokenStorage(backing);
+
+    backing.setItem("aimem.token", "токен");
+
+    expect(storage.get()).toBeUndefined();
+  });
+
+  it("keeps a Latin-1 token, which the browser can send", () => {
+    const storage = createTokenStorage(createFakeStorage());
+
+    storage.set("café");
+
+    expect(storage.get()).toBe("café");
+  });
+});

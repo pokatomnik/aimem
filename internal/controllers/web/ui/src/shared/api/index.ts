@@ -15,6 +15,7 @@ export {
   createTokenStorage,
 } from "@/shared/api/tokenStorage";
 export type { TokenStorage } from "@/shared/api/tokenStorage";
+export { isTokenSendable } from "@/shared/api/token";
 export {
   ERROR_MESSAGES,
   getErrorMessage,

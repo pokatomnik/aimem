@@ -290,3 +290,43 @@ describe("authorization", () => {
     }
   });
 });
+
+describe("auth header", () => {
+  it("sends the token when the browser can put it in a header", async () => {
+    const { calls, fetchImpl } = createRecordingFetch(() =>
+      jsonResponse(200, { value: { found: [] } }),
+    );
+
+    const api = createFactApi({
+      baseUrl: BASE_URL,
+      fetchImpl,
+      getToken: () => "57aa8cba-0ba5-47c1-8a96-9791e9576241",
+    });
+
+    await api.search("abc");
+
+    expect(calls[0]?.authorization).toBe(
+      "Bearer 57aa8cba-0ba5-47c1-8a96-9791e9576241",
+    );
+  });
+
+  it("omits a token the browser cannot encode instead of throwing", async () => {
+    // Regression: a Cyrillic token made `fetch` throw a `TypeError` before the
+    // request left, which the client reported as NETWORK_ERROR — "Server is
+    // unreachable" for a server that was running fine. Sending no header turns
+    // that into an honest 401 instead.
+    const { calls, fetchImpl } = createRecordingFetch(() =>
+      jsonResponse(200, { value: { found: [] } }),
+    );
+
+    const api = createFactApi({
+      baseUrl: BASE_URL,
+      fetchImpl,
+      getToken: () => "токен",
+    });
+
+    await api.search("abc");
+
+    expect(calls[0]?.authorization).toBeNull();
+  });
+});

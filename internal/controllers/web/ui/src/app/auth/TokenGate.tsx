@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 
 import styles from "./TokenGate.module.css";
+import { isTokenSendable } from "@/shared/api/token";
 import { Button } from "@/shared/ui/Button";
 import { TextInput } from "@/shared/ui/TextInput";
 
@@ -21,7 +22,11 @@ export type TokenGateProps = {
 export const TokenGate = ({ onSave }: TokenGateProps): ReactNode => {
   const [value, setValue] = useState("");
   const trimmed = value.trim();
-  const valid = trimmed !== "";
+  // Empty is "nothing typed yet"; unsendable is "typed, but the browser would
+  // refuse to put it in a header". Both block Save, and only the second one needs
+  // an explanation — the field is not wrong, the characters are.
+  const sendable = isTokenSendable(trimmed);
+  const valid = trimmed !== "" && sendable;
 
   return (
     <div className={styles.shell}>
@@ -61,6 +66,12 @@ export const TokenGate = ({ onSave }: TokenGateProps): ReactNode => {
               onChange={(event) => {
                 setValue(event.target.value);
               }}
+              hint={
+                trimmed !== "" && !sendable
+                  ? "A token goes into an HTTP header, so it can only use Latin letters, digits and symbols — no Cyrillic or emoji."
+                  : null
+              }
+              hintError={trimmed !== "" && !sendable}
               autoFocus
               autoComplete="off"
               spellCheck={false}

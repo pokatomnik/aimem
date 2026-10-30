@@ -1,3 +1,5 @@
+import { isTokenSendable } from "@/shared/api/token";
+
 /**
  * The token is the whole session: there is no login flow and no expiry, and
  * logging out is simply dropping the entry. Keeping it in one place means the
@@ -16,9 +18,20 @@ export type TokenStorage = {
   readonly remove: () => void;
 };
 
-/** `undefined` means "nothing stored"; an empty string is treated the same way. */
-const normalize = (value: string | null): string | undefined =>
-  value === null || value.trim() === "" ? undefined : value.trim();
+/**
+ * `undefined` means "nothing stored"; an empty string is treated the same way,
+ * and so is a value the browser could not send as a header — keeping it would
+ * make every request fail before it leaves, with a message about the network.
+ */
+const normalize = (value: string | null): string | undefined => {
+  if (value === null) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+
+  return trimmed === "" || !isTokenSendable(trimmed) ? undefined : trimmed;
+};
 
 export const createTokenStorage = (storage: Storage): TokenStorage => ({
   get: () => normalize(storage.getItem(STORAGE_KEY)),

@@ -8,7 +8,8 @@ import styles from "./TextInput.module.css";
 
 type Common = {
   readonly label: string;
-  readonly hint?: string;
+  /** `null` means "no hint"; `undefined` is not used so the field is explicit. */
+  readonly hint?: string | null;
   readonly hintError?: boolean;
 };
 
@@ -36,7 +37,7 @@ export const TextInput = ({
         className={[styles.field, className ?? ""].filter(Boolean).join(" ")}
         {...rest}
       />
-      {hint !== undefined ? (
+      {hint !== undefined && hint !== null ? (
         <p
           className={[styles.hint, hintError ? styles.hintError : ""]
             .filter(Boolean)
@@ -72,7 +73,7 @@ export const TextArea = ({
           .join(" ")}
         {...rest}
       />
-      {hint !== undefined ? (
+      {hint !== undefined && hint !== null ? (
         <p
           className={[styles.hint, hintError ? styles.hintError : ""]
             .filter(Boolean)

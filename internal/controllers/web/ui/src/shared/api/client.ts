@@ -2,6 +2,7 @@ import createClient from "openapi-fetch";
 
 import type { components, paths } from "@/api/generated/schema";
 import { ApiError } from "@/shared/api/ApiError";
+import { isTokenSendable } from "@/shared/api/token";
 import { unwrap } from "@/shared/api/unwrap";
 
 /** A fact as returned by `GET /api/v1/fact/{factID}`. */
@@ -70,7 +71,11 @@ export const createFactApi = (config: FactApiConfig = {}): FactApi => {
   // forwarded.
   const authHeaders = (): { headers?: Record<string, string> } => {
     const token = config.getToken?.();
-    if (token === undefined) {
+    // A token the browser cannot put in a header is not attached: passing it on
+    // would make `fetch` throw a `TypeError` before the request leaves, which is
+    // reported as "server unreachable" and hides the real cause. Without the
+    // header the server answers 401, which is accurate.
+    if (token === undefined || !isTokenSendable(token)) {
       return {};
     }
 

@@ -89,6 +89,20 @@ describe("AuthGate", () => {
     expect(save).toBeEnabled();
   });
 
+  it("refuses a token the browser cannot put in a header", async () => {
+    const user = userEvent.setup();
+    renderGate(true);
+
+    // Regression: saving this used to unlock the app, and then every request
+    // failed with "Server is unreachable", because `fetch` threw before sending.
+    await user.type(screen.getByLabelText("Access token"), "токен");
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(
+      screen.getByText(/can only use Latin letters, digits and symbols/),
+    ).toBeInTheDocument();
+  });
+
   it("submits on Enter as well as on the button", async () => {
     const user = userEvent.setup();
     renderGate(true);
