@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 
+import { RequestError } from "@/app/auth/RequestError";
 import { Layout } from "@/app/layout/Layout";
 import { FactCard } from "@/entities/fact/ui/FactCard";
 import { SearchForm, useSearch } from "@/features/search-facts";
 import { isSearchQueryValid, normalizeQuery } from "@/shared/lib/text";
 import { EmptyState } from "@/shared/ui/EmptyState";
-import { ErrorMessage } from "@/shared/ui/ErrorMessage";
 import { Spinner } from "@/shared/ui/Spinner";
 import styles from "./SearchPage.module.css";
 import { SearchResultsHeader } from "./SearchResultsHeader";
@@ -64,7 +64,7 @@ export const SearchPage = ({
         {isPending ? <Spinner label="Searching by meaning" /> : null}
 
         {error !== null && error !== undefined ? (
-          <ErrorMessage error={error} onRetry={refetch} title="Search failed" />
+          <RequestError error={error} onRetry={refetch} title="Search failed" />
         ) : null}
 
         {items !== undefined ? (

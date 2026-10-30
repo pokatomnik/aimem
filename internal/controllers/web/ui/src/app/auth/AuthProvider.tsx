@@ -12,9 +12,9 @@ export type AuthProviderProps = {
 };
 
 /**
- * The token is read once on mount and written on save. It is not re-read on
- * every render: the only writer is this provider, so storage and state cannot
- * drift apart.
+ * The token is read once on mount and written on save or dropped on logout. It
+ * is not re-read on every render: the only writer is this provider, so storage
+ * and state cannot drift apart.
  */
 export const AuthProvider = ({
   required,
@@ -30,6 +30,10 @@ export const AuthProvider = ({
       saveToken: (next: string) => {
         storage.set(next);
         setToken(storage.get());
+      },
+      clearToken: () => {
+        storage.remove();
+        setToken(undefined);
       },
     }),
     [required, storage, token],

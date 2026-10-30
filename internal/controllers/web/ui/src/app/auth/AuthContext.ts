@@ -11,6 +11,8 @@ export type AuthSession = {
   readonly required: boolean;
   readonly token: string | undefined;
   readonly saveToken: (token: string) => void;
+  /** Logout: drops the stored token, which brings the gate back. */
+  readonly clearToken: () => void;
 };
 
 /** `null` means "no provider above": `useAuth` turns that into a loud error. */

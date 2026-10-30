@@ -9,7 +9,9 @@ import {
  * A minimal `Storage` over a `Map`. It is passed in explicitly, so these tests
  * never reach `window.localStorage` and cannot leak state into each other.
  */
-const createFakeStorage = (): Storage & { readonly dump: () => Record<string, string> } => {
+const createFakeStorage = (): Storage & {
+  readonly dump: () => Record<string, string>;
+} => {
   const data = new Map<string, string>();
 
   return {
@@ -72,6 +74,17 @@ describe("createTokenStorage", () => {
 
     expect(backing.dump()).toEqual({ "aimem.token": "secret" });
   });
+
+  it("removes the stored token on logout", () => {
+    const backing = createFakeStorage();
+    const storage = createTokenStorage(backing);
+
+    storage.set("secret");
+    storage.remove();
+
+    expect(storage.get()).toBeUndefined();
+    expect(backing.dump()).toEqual({});
+  });
 });
 
 describe("createMemoryTokenStorage", () => {
@@ -94,5 +107,14 @@ describe("createMemoryTokenStorage", () => {
     storage.set("  ");
 
     expect(storage.get()).toBeUndefined();
+  });
+
+  it("clears the token on logout", () => {
+    const storage = createMemoryTokenStorage("secret");
+
+    storage.remove();
+
+    expect(storage.get()).toBeUndefined();
+    expect(storage.current()).toBeUndefined();
   });
 });

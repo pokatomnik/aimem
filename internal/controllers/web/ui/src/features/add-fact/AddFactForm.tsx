@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 
+import { RequestError } from "@/app/auth/RequestError";
 import { isFactValid, normalizeQuery } from "@/shared/lib/text";
 import { Button } from "@/shared/ui/Button";
-import { ErrorMessage } from "@/shared/ui/ErrorMessage";
 import { TextArea } from "@/shared/ui/TextInput";
 import styles from "./AddFactForm.module.css";
 import { useAddFact } from "./useAddFact";
@@ -88,7 +88,7 @@ export const AddFactForm = ({
         <span className={styles.counter}>{value.trim().length} characters</span>
       </div>
       {error !== null && error !== undefined ? (
-        <ErrorMessage error={error} title="Could not add the fact" />
+        <RequestError error={error} title="Could not add the fact" />
       ) : null}
     </form>
   );

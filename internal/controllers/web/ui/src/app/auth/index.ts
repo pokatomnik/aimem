@@ -3,5 +3,8 @@ export { AuthProvider } from "./AuthProvider";
 export type { AuthProviderProps } from "./AuthProvider";
 export { needsToken, useAuth } from "./AuthContext";
 export type { AuthSession } from "./AuthContext";
+export { RequestError } from "./RequestError";
+export type { RequestErrorProps } from "./RequestError";
 export { TokenGate } from "./TokenGate";
 export type { TokenGateProps } from "./TokenGate";
+export { isUnauthorized, useLogout } from "./useLogout";

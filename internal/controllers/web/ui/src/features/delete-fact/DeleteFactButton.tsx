@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 
+import { RequestError } from "@/app/auth/RequestError";
 import { Button } from "@/shared/ui/Button";
-import { ErrorMessage } from "@/shared/ui/ErrorMessage";
 import styles from "./DeleteFactButton.module.css";
 import { useDeleteFact } from "./useDeleteFact";
 
@@ -56,7 +56,7 @@ export const DeleteFactButton = ({
       </div>
       {error !== null && error !== undefined ? (
         <div className={styles.error}>
-          <ErrorMessage error={error} title="Could not delete the fact" />
+          <RequestError error={error} title="Could not delete the fact" />
         </div>
       ) : null}
     </div>

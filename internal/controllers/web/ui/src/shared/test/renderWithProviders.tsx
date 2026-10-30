@@ -3,8 +3,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, renderHook } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
+import { AuthProvider } from "@/app/auth";
 import { ApiProvider } from "@/app/providers/ApiProvider";
 import type { FactApi } from "@/shared/api";
+import { createMemoryTokenStorage } from "@/shared/api/tokenStorage";
+import type { TokenStorage } from "@/shared/api/tokenStorage";
 
 /** A fresh cache per test, with retries and garbage collection disabled. */
 const createTestQueryClient = (): QueryClient =>
@@ -17,11 +20,19 @@ const createTestQueryClient = (): QueryClient =>
 
 export type RenderOptions = {
   readonly route?: string;
+  /** Defaults to no auth: most pages are tested without a session at all. */
+  readonly authRequired?: boolean;
+  /** Defaults to an empty in-memory store; pass one to seed a token. */
+  readonly tokenStorage?: TokenStorage;
 };
 
 /**
  * Renders a component with the real providers and a fake API. Nothing here
  * touches the network, the filesystem or the environment.
+ *
+ * The auth provider is always mounted, even for pages that do not care: the
+ * session is read by shared UI (`RequestError`), and a missing provider is a
+ * programming error rather than a valid test setup.
  */
 export const renderWithProviders = (
   ui: ReactNode,
@@ -33,9 +44,14 @@ export const renderWithProviders = (
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <ApiProvider api={api}>
-        <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
-      </ApiProvider>
+      <AuthProvider
+        required={options.authRequired ?? false}
+        storage={options.tokenStorage ?? createMemoryTokenStorage()}
+      >
+        <ApiProvider api={api}>
+          <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+        </ApiProvider>
+      </AuthProvider>
     </QueryClientProvider>,
   );
 };

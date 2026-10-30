@@ -3,6 +3,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ApiError } from "@/shared/api";
+import { createMemoryTokenStorage } from "@/shared/api/tokenStorage";
 import {
   createFakeApi,
   factListItemFixture,
@@ -15,6 +16,7 @@ const ROUTE = "/search?q=coffee";
 const renderSearchPage = (
   api = createFakeApi(),
   overrides: Partial<Parameters<typeof SearchPage>[0]> = {},
+  options: Parameters<typeof renderWithProviders>[2] = {},
 ): ReturnType<typeof renderWithProviders> =>
   renderWithProviders(
     <SearchPage
@@ -25,7 +27,7 @@ const renderSearchPage = (
       {...overrides}
     />,
     api,
-    { route: ROUTE },
+    { route: ROUTE, ...options },
   );
 
 describe("SearchPage", () => {
@@ -100,6 +102,39 @@ describe("SearchPage", () => {
       name: new RegExp(factListItemFixture.summary),
     });
     expect(link).toHaveAttribute("href", `/custom/${factListItemFixture.id}`);
+  });
+
+  it("offers Logout next to Retry when the token was rejected", async () => {
+    renderSearchPage(
+      createFakeApi({
+        search: () =>
+          Promise.reject(new ApiError("UNAUTHORIZED", { status: 401 })),
+      }),
+      {},
+      { authRequired: true, tokenStorage: createMemoryTokenStorage("stale") },
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Retry" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
+  });
+
+  it("keeps only Retry when the failure is not about the token", async () => {
+    renderSearchPage(
+      createFakeApi({
+        search: () => Promise.reject(new ApiError("NETWORK_ERROR")),
+      }),
+      {},
+      { authRequired: true, tokenStorage: createMemoryTokenStorage("ok") },
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Retry" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Logout" }),
+    ).not.toBeInTheDocument();
   });
 
   it("delegates a new search to the injected callback", async () => {

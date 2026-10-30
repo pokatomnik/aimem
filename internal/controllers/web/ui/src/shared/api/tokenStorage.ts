@@ -1,7 +1,7 @@
 /**
- * The token is the whole session: there is no login, no expiry and no logout.
- * Keeping it in one place means the storage key is never duplicated across the
- * client, the gate and the tests.
+ * The token is the whole session: there is no login flow and no expiry, and
+ * logging out is simply dropping the entry. Keeping it in one place means the
+ * storage key is never duplicated across the client, the gate and the tests.
  */
 const STORAGE_KEY = "aimem.token";
 
@@ -12,6 +12,8 @@ const STORAGE_KEY = "aimem.token";
 export type TokenStorage = {
   readonly get: () => string | undefined;
   readonly set: (token: string) => void;
+  /** Logout: the stored token is dropped and `get` answers `undefined` again. */
+  readonly remove: () => void;
 };
 
 /** `undefined` means "nothing stored"; an empty string is treated the same way. */
@@ -22,6 +24,9 @@ export const createTokenStorage = (storage: Storage): TokenStorage => ({
   get: () => normalize(storage.getItem(STORAGE_KEY)),
   set: (token) => {
     storage.setItem(STORAGE_KEY, token.trim());
+  },
+  remove: () => {
+    storage.removeItem(STORAGE_KEY);
   },
 });
 
@@ -38,6 +43,9 @@ export const createMemoryTokenStorage = (
     get: () => token,
     set: (value) => {
       token = normalize(value);
+    },
+    remove: () => {
+      token = undefined;
     },
     current: () => token,
   };

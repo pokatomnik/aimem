@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useParams } from "react-router";
 
+import { RequestError } from "@/app/auth/RequestError";
 import { Layout } from "@/app/layout/Layout";
 import { formatDate } from "@/entities/fact/model/formatDate";
 import { MarkdownView } from "@/entities/fact/ui/MarkdownView";
@@ -9,7 +10,6 @@ import { useFact } from "@/features/fact-detail";
 import { ApiError } from "@/shared/api/ApiError";
 import { Button } from "@/shared/ui/Button";
 import { EmptyState } from "@/shared/ui/EmptyState";
-import { ErrorMessage } from "@/shared/ui/ErrorMessage";
 import { Meta, MetaDot } from "@/shared/ui/Meta";
 import { Spinner } from "@/shared/ui/Spinner";
 import styles from "./FactPage.module.css";
@@ -51,7 +51,7 @@ export const FactPage = ({ onBack, homeHref }: FactPageProps): ReactNode => {
             action={<a href={homeHref}>Back to home</a>}
           />
         ) : (
-          <ErrorMessage
+          <RequestError
             error={error}
             onRetry={refetch}
             title="Could not load the fact"

@@ -207,9 +207,10 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
   the same `authRequired` value the handlers enforce, so the page and the API
   cannot disagree. Do not add a `GET /api/v1/auth` endpoint for this: the server
   already knows the answer when it builds the page, and an endpoint would let the
-  two drift. The token lives in `localStorage` under `aimem.token`; there is no
-  logout by design — revoking a token means editing `[[users]]`, which takes
-  effect on the next request because the file is re-read every time.
+  two drift. The token lives in `localStorage` under `aimem.token`. Logging out
+  is client-side only — the error block drops the token and shows the form again
+  — so revoking a token for real means editing `[[users]]`, which takes effect on
+  the next request because the file is re-read every time.
 
 ## Prompts and Documentation
 

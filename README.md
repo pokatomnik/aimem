@@ -503,10 +503,17 @@ locking the user out of an API that needs no token is worse than one rejected
 request.
 
 The token is stored in the browser's `localStorage` under `aimem.token`, so it
-survives a reload. There is deliberately no logout and no session expiry: to
-drop access, remove the token from `[[users]]` in `config.toml` — the server
-re-reads the file on every request, so the token stops working immediately while
-any copy in a browser becomes a harmless stale string.
+survives a reload. A token is not checked when it is entered — the form cannot
+know whether it is valid — so a wrong one surfaces as a failed request. When
+that failure is `UNAUTHORIZED`, the error block offers **Logout** next to
+**Retry**: it drops the stored token and shows the form again. Logging out is
+purely a client-side operation, and it clears the query cache, since every entry
+in it was fetched under the identity being dropped.
+
+There is no session expiry, and no server-side logout: to revoke a token itself,
+remove it from `[[users]]` in `config.toml`. The server re-reads the file on
+every request, so the token stops working immediately while any copy in a browser
+becomes a harmless stale string.
 
 The API contract lives in `internal/controllers/web/openapi.yaml`.
 
