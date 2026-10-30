@@ -15,7 +15,7 @@ import (
 // ServerOptions makes the generated server answer with appError JSON instead
 // of ogen's text/plain defaults. Pass them to server.NewServer:
 //
-//	server.NewServer(methods, web.ServerOptions()...)
+//	server.NewServer(methods, security, web.ServerOptions()...)
 func ServerOptions() []server.ServerOption {
 	return []server.ServerOption{
 		server.WithErrorHandler(RequestErrorHandler),
@@ -24,17 +24,21 @@ func ServerOptions() []server.ServerOption {
 }
 
 // RequestErrorHandler handles every failure the generated server cannot turn
-// into a response, which includes two distinct kinds.
+// into a response, which includes three distinct kinds.
 //
 // Failures raised before a handler of ours runs — malformed JSON, a body or
 // parameter that fails spec validation, an unexpected Content-Type — do not
 // match the contract, so they are reported as 400.
 //
+// Authentication failures arrive here too: ogen reports a missing header as a
+// bare ogenerrors.ErrSecurityRequirementIsNotSatisfied and a rejected token as a
+// SecurityError wrapping our own error. mapDomainError turns both into 401.
+//
 // Errors returned by a handler arrive here too, because the generated server
-// routes them to the configured error handler rather than calling NewError.
-// Those carry domain meaning, so they go through mapDomainError and keep their
-// own status: a missing fact stays 404, a duplicate stays 409. Reporting them
-// as a blanket 500 would erase that distinction.
+// routes them to the configured error handler rather than to a per-operation
+// NewError method. Those carry domain meaning, so they go through mapDomainError
+// and keep their own status: a missing fact stays 404, a duplicate stays 409.
+// Reporting them as a blanket 500 would erase that distinction.
 func RequestErrorHandler(
 	ctx context.Context,
 	w http.ResponseWriter,

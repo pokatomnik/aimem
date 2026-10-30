@@ -10,6 +10,12 @@ export type {
   RequestOptions,
 } from "@/shared/api/client";
 export {
+  createDefaultTokenStorage,
+  createMemoryTokenStorage,
+  createTokenStorage,
+} from "@/shared/api/tokenStorage";
+export type { TokenStorage } from "@/shared/api/tokenStorage";
+export {
   ERROR_MESSAGES,
   getErrorMessage,
   isErrorCode,

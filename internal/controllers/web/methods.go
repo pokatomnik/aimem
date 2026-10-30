@@ -8,16 +8,34 @@ import (
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 )
 
+// Methods holds the handlers of the generated server.
+//
+// authRequired decides whether a request needs a resolved user. The generated
+// server treats the bearer token as optional, because whether the header is
+// mandatory depends on the storage backend and only the running configuration
+// knows that; this field carries the answer from startup into the handlers.
 type Methods struct {
-	remember   Remember
-	recall     Recall
-	getFact    GetFact
-	removeFact RemoveFact
+	remember     Remember
+	recall       Recall
+	getFact      GetFact
+	removeFact   RemoveFact
+	authRequired bool
 }
 
+// getUserID returns the user the request was authenticated as.
+//
+// With authentication off the context is never read: the embedded backend ignores
+// userID entirely, so there is nothing to look up and no header that could have
+// put anything there. With authentication on an empty ID is refused, because
+// falling back to the base collection would silently mix every user's facts into
+// one.
 func (m *Methods) getUserID(ctx context.Context) (string, error) {
-	id, ok := ctx.Value(userIDKey{}).(string)
-	if !ok || id == "" {
+	if !m.authRequired {
+		return "", nil
+	}
+
+	id, _ := ctx.Value(userIDKey{}).(string)
+	if id == "" {
 		return "", apperrors.ErrUserNotFound
 	}
 

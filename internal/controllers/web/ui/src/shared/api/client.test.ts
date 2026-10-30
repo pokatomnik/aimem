@@ -9,6 +9,7 @@ type RecordedRequest = {
   readonly url: string;
   readonly body: string | undefined;
   readonly signal: AbortSignal;
+  readonly authorization: string | null;
 };
 
 /**
@@ -38,6 +39,7 @@ const createRecordingFetch = (
       url: request.url,
       body: body === "" ? undefined : body,
       signal: request.signal,
+      authorization: request.headers.get("Authorization"),
     });
     return response();
   };
@@ -212,5 +214,79 @@ describe("deleteFact", () => {
       code: "FACT_DOES_NOT_EXIST",
       status: 404,
     });
+  });
+});
+
+describe("authorization", () => {
+  it("attaches the token as a bearer header", async () => {
+    const { calls, fetchImpl } = createRecordingFetch(() =>
+      jsonResponse(200, { value: { found: [] } }),
+    );
+
+    const api = createFactApi({
+      baseUrl: BASE_URL,
+      fetchImpl,
+      getToken: () => "secret",
+    });
+
+    await api.search("anything");
+
+    expect(calls[0]?.authorization).toBe("Bearer secret");
+  });
+
+  it("sends no header when no token is stored", async () => {
+    const { calls, fetchImpl } = createRecordingFetch(() =>
+      jsonResponse(200, { value: { found: [] } }),
+    );
+
+    // The embedded backend needs no token; its requests must stay anonymous
+    // rather than carry an empty "Bearer " value the server would reject.
+    const api = createFactApi({ baseUrl: BASE_URL, fetchImpl });
+
+    await api.search("anything");
+
+    expect(calls[0]?.authorization).toBeNull();
+  });
+
+  it("reads the token per request, so saving one takes effect at once", async () => {
+    const { calls, fetchImpl } = createRecordingFetch(() =>
+      jsonResponse(200, { value: { found: [] } }),
+    );
+
+    // A mutable holder rather than a `let`: the closure reads it on every call,
+    // and eslint treats a single assignment to a `let` as a constant.
+    const session: { token: string | undefined } = { token: undefined };
+    const api = createFactApi({
+      baseUrl: BASE_URL,
+      fetchImpl,
+      getToken: () => session.token,
+    });
+
+    await api.search("first");
+    session.token = "saved-later";
+    await api.search("second");
+
+    expect(calls[0]?.authorization).toBeNull();
+    expect(calls[1]?.authorization).toBe("Bearer saved-later");
+  });
+
+  it("signs every operation, not just search", async () => {
+    const { calls, fetchImpl } = createRecordingFetch(() =>
+      jsonResponse(200, { value: {} }),
+    );
+
+    const api = createFactApi({
+      baseUrl: BASE_URL,
+      fetchImpl,
+      getToken: () => "secret",
+    });
+
+    await api.addFact("x");
+    await api.getFact("a1");
+    await api.deleteFact("a1");
+
+    for (const call of calls) {
+      expect(call.authorization).toBe("Bearer secret");
+    }
   });
 });

@@ -18,5 +18,6 @@ var (
 	ErrFactDoesNotExist                          = errors.New("document does not exist")
 
 	// Users errors
-	ErrUserNotFound = errors.New("unauthorized")
+	ErrUserNotFound      = errors.New("unauthorized")
+	ErrNoUsersConfigured = errors.New("no users configured")
 )

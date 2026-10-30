@@ -7,10 +7,22 @@ import (
 	"testing"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/pokatomnik/gomem/internal/adapters/servers/mcp/mcpdeps"
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 	factentity "github.com/pokatomnik/gomem/internal/entities/fact"
 	"github.com/pokatomnik/gomem/internal/entities/user"
 )
+
+// required is the authenticator most tests use: every call must carry a valid
+// token, because that is the production wiring for Qdrant.
+func required(f *fakeDeps) mcpdeps.Authenticator {
+	return NewTokenAuthenticator(f)
+}
+
+// anonymous stands in for the embedded deployment: no credentials are read at all.
+func anonymous() mcpdeps.Authenticator {
+	return NewAnonymousAuthenticator()
+}
 
 // fakeDeps records what reached it so a test can prove the user resolved from the
 // token is the one the store operation received.
@@ -18,6 +30,10 @@ type fakeDeps struct {
 	recalled string
 	readID   string
 	userID   string
+
+	// authCalls counts token lookups, so a test can tell "authenticate was never
+	// called" from "it was called and happened to answer with an empty ID".
+	authCalls int
 
 	authErr error
 }
@@ -53,6 +69,8 @@ func (f *fakeDeps) RemoveFactByID(ctx context.Context, userID, id string) error 
 }
 
 func (f *fakeDeps) GetUserByToken(ctx context.Context, token string) (user.User, error) {
+	f.authCalls++
+
 	if f.authErr != nil {
 		return user.User{}, f.authErr
 	}
@@ -75,7 +93,7 @@ func reqWithToken(value string) *sdk.CallToolRequest {
 func TestRecallReturnsSummariesOnly(t *testing.T) {
 	f := &fakeDeps{}
 
-	_, handler, err := ToolRecall(f, f)
+	_, handler, err := ToolRecall(required(f), f)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +119,7 @@ func TestRecallReturnsSummariesOnly(t *testing.T) {
 func TestReadFactReturnsFullText(t *testing.T) {
 	f := &fakeDeps{}
 
-	_, handler, err := ToolGetFact(f, f)
+	_, handler, err := ToolGetFact(required(f), f)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +148,7 @@ func TestUserResolvedFromTokenReachesStore(t *testing.T) {
 		{
 			name: "remember",
 			run: func(f *fakeDeps) error {
-				_, h, err := ToolRemember(f, f)
+				_, h, err := ToolRemember(required(f), f)
 				if err != nil {
 					return err
 				}
@@ -141,7 +159,7 @@ func TestUserResolvedFromTokenReachesStore(t *testing.T) {
 		{
 			name: "recall",
 			run: func(f *fakeDeps) error {
-				_, h, err := ToolRecall(f, f)
+				_, h, err := ToolRecall(required(f), f)
 				if err != nil {
 					return err
 				}
@@ -152,7 +170,7 @@ func TestUserResolvedFromTokenReachesStore(t *testing.T) {
 		{
 			name: "read_fact",
 			run: func(f *fakeDeps) error {
-				_, h, err := ToolGetFact(f, f)
+				_, h, err := ToolGetFact(required(f), f)
 				if err != nil {
 					return err
 				}
@@ -163,7 +181,7 @@ func TestUserResolvedFromTokenReachesStore(t *testing.T) {
 		{
 			name: "remove_fact_by_id",
 			run: func(f *fakeDeps) error {
-				_, h, err := ToolRemoveFact(f, f)
+				_, h, err := ToolRemoveFact(required(f), f)
 				if err != nil {
 					return err
 				}
@@ -221,7 +239,7 @@ func TestToolRefusesWithoutValidToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, handler, err := ToolRemember(tt.store, tt.store)
+			_, handler, err := ToolRemember(required(tt.store), tt.store)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -235,5 +253,83 @@ func TestToolRefusesWithoutValidToken(t *testing.T) {
 				t.Errorf("store was reached with userID %q despite a refusal", tt.store.userID)
 			}
 		})
+	}
+}
+
+// With authentication off the tools must run anonymously: the embedded backend
+// has no users to resolve, so demanding a token there would break a deployment
+// that never configured one.
+func TestToolRunsAnonymouslyWhenAuthIsOff(t *testing.T) {
+	f := &fakeDeps{}
+
+	_, handler, err := ToolRemember(anonymous(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// No headers at all: there is nothing to read and nothing to check.
+	_, out, err := handler(context.Background(), &sdk.CallToolRequest{}, rememberInput{Fact: "x"})
+	if err != nil {
+		t.Fatalf("remember failed: %v", err)
+	}
+
+	if f.authCalls != 0 {
+		t.Errorf("GetUserByToken called %d times, want 0: credentials must not be read when none are needed", f.authCalls)
+	}
+
+	if out.Summary != "summary of x" {
+		t.Errorf("summary = %q, want the store's answer", out.Summary)
+	}
+
+	if f.userID != "" {
+		t.Errorf("userID = %q, want the empty one the embedded backend ignores", f.userID)
+	}
+}
+
+// The token authenticator is injected, not chosen per call: a deployment that
+// requires tokens never falls back to anonymous access, whatever the request looks
+// like.
+func TestTokenAuthenticatorRejectsEveryUnusableCredential(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *sdk.CallToolRequest
+	}{
+		{name: "no request", req: nil},
+		{name: "no extra", req: &sdk.CallToolRequest{}},
+		{name: "no header", req: reqWithToken("")},
+		{name: "wrong scheme", req: reqWithToken("tok")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &fakeDeps{}
+
+			if _, err := NewTokenAuthenticator(f).UserID(context.Background(), tt.req); !errors.Is(err, apperrors.ErrUserNotFound) {
+				t.Errorf("err = %v, want %v", err, apperrors.ErrUserNotFound)
+			}
+
+			if f.authCalls != 0 {
+				t.Errorf("store was consulted %d times, want 0", f.authCalls)
+			}
+		})
+	}
+}
+
+// The anonymous authenticator reads nothing at all: it is the whole implementation
+// of "this deployment has no users".
+func TestAnonymousAuthenticatorReadsNothing(t *testing.T) {
+	f := &fakeDeps{}
+
+	id, err := NewAnonymousAuthenticator().UserID(context.Background(), reqWithToken("Bearer ignored"))
+	if err != nil {
+		t.Fatalf("UserID: %v", err)
+	}
+
+	if id != "" {
+		t.Errorf("id = %q, want empty", id)
+	}
+
+	if f.authCalls != 0 {
+		t.Errorf("store was consulted %d times, want 0", f.authCalls)
 	}
 }

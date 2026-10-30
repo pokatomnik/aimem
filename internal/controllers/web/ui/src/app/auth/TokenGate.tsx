@@ -1,0 +1,80 @@
+import type { ReactNode } from "react";
+import { useState } from "react";
+
+import styles from "./TokenGate.module.css";
+import { Button } from "@/shared/ui/Button";
+import { TextInput } from "@/shared/ui/TextInput";
+
+export type TokenGateProps = {
+  readonly onSave: (token: string) => void;
+};
+
+/**
+ * The only thing a user sees until a token is stored. There is no login flow and
+ * no logout, so it is deliberately a single field and a single button — the token
+ * is the whole session, and it comes from the `[[users]]` section of the server's
+ * `config.toml`.
+ */
+export const TokenGate = ({ onSave }: TokenGateProps): ReactNode => {
+  const [value, setValue] = useState("");
+  const trimmed = value.trim();
+  const valid = trimmed !== "";
+
+  return (
+    <div className={styles.shell}>
+      <header className={styles.topbar}>
+        <div className={styles.topbarInner}>
+          <span className={styles.brand}>
+            <span className={styles.brandMark} aria-hidden="true" />
+            <span>
+              aimem<span className={styles.brandMuted}>.web</span>
+            </span>
+          </span>
+        </div>
+      </header>
+
+      <main className={styles.main}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>Token required</h1>
+          <p className={styles.subtitle}>
+            This server keeps a separate memory per user, so it needs to know
+            who you are. Paste a token from the <code>[[users]]</code> section of
+            the server&apos;s config.
+          </p>
+
+          <form
+            className={styles.form}
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (valid) {
+                onSave(trimmed);
+              }
+            }}
+          >
+            <TextInput
+              label="Access token"
+              placeholder="a-long-random-string"
+              value={value}
+              onChange={(event) => {
+                setValue(event.target.value);
+              }}
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <Button type="submit" disabled={!valid}>
+              Save
+            </Button>
+          </form>
+
+          <p className={styles.hint}>
+            The token is kept in this browser&apos;s local storage and sent with
+            every request.
+          </p>
+        </div>
+      </main>
+
+      <footer className={styles.footer}>local memory · Ollama · HNSW</footer>
+    </div>
+  );
+};

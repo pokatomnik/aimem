@@ -24,6 +24,11 @@ export type FactApiConfig = {
    */
   readonly baseUrl?: string;
   readonly fetchImpl?: FetchLike;
+  /**
+   * Read on every request, not cached: the user can save a token after the
+   * client was built, and the very next call must already carry it.
+   */
+  readonly getToken?: () => string | undefined;
 };
 
 export type RequestOptions = {
@@ -58,6 +63,20 @@ export const createFactApi = (config: FactApiConfig = {}): FactApi => {
     ...(config.fetchImpl === undefined ? {} : { fetch: config.fetchImpl }),
   });
 
+  // `openapi-fetch` builds the request but never adds credentials on its own, so
+  // the header is attached here, at the single seam every call goes through.
+  // A spread rather than a wrapper function: the generated client is generic over
+  // the operation, and a wrapper would erase `body`/`params` from each call it
+  // forwarded.
+  const authHeaders = (): { headers?: Record<string, string> } => {
+    const token = config.getToken?.();
+    if (token === undefined) {
+      return {};
+    }
+
+    return { headers: { Authorization: `Bearer ${token}` } };
+  };
+
   // Transport failures (DNS, connection refused, abort) arrive as throws, while
   // documented failures arrive as `error` payloads. Normalise both to `ApiError`.
   const run = async <T>(request: () => Promise<T>): Promise<T> => {
@@ -73,6 +92,7 @@ export const createFactApi = (config: FactApiConfig = {}): FactApi => {
       run(async () => {
         const body = unwrap<SearchResponse>(
           await client.POST("/api/v1/search", {
+            ...authHeaders(),
             body: { query },
             ...withSignal(options?.signal),
           }),
@@ -84,6 +104,7 @@ export const createFactApi = (config: FactApiConfig = {}): FactApi => {
       run(async () => {
         const body = unwrap<FactResponse>(
           await client.GET("/api/v1/fact/{factID}", {
+            ...authHeaders(),
             params: { path: { factID: id } },
             ...withSignal(options?.signal),
           }),
@@ -95,6 +116,7 @@ export const createFactApi = (config: FactApiConfig = {}): FactApi => {
       run(async () => {
         const body = unwrap<AddFactResponse>(
           await client.POST("/api/v1/fact", {
+            ...authHeaders(),
             body: { value: { fact } },
             ...withSignal(options?.signal),
           }),
@@ -107,6 +129,7 @@ export const createFactApi = (config: FactApiConfig = {}): FactApi => {
         // Success is `200 { "value": {} }`: only the status matters here.
         unwrap<unknown>(
           await client.DELETE("/api/v1/fact/{factID}", {
+            ...authHeaders(),
             params: { path: { factID: id } },
             ...withSignal(options?.signal),
           }),

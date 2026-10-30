@@ -21,11 +21,17 @@ type Controller struct {
 	removeFact     RemoveFact
 	mcpHandler     http.Handler
 	authentication Authentication
+	// authRequired is fixed by the constructor. It decides whether a request needs a
+	// resolved user, and is baked into the served page so the API and the UI cannot
+	// disagree.
+	authRequired bool
 }
 
 const defaultWebHost = "127.0.0.1:8888"
 
-func New(
+// NewWithAuth serves a deployment where every request must be authenticated, i.e.
+// no user can be inferred without a token.
+func NewWithAuth(
 	cfg Config,
 	remember Remember,
 	recall Recall,
@@ -33,6 +39,35 @@ func New(
 	removeFact RemoveFact,
 	mcpHandler http.Handler,
 	authentication Authentication,
+) *Controller {
+	return newController(cfg, remember, recall, getFact, removeFact, mcpHandler, authentication, true)
+}
+
+// NewWithoutAuth serves a deployment where the header carries no meaning: one
+// local operator, and a store that ignores the user ID entirely.
+func NewWithoutAuth(
+	cfg Config,
+	remember Remember,
+	recall Recall,
+	getFact GetFact,
+	removeFact RemoveFact,
+	mcpHandler http.Handler,
+	authentication Authentication,
+) *Controller {
+	return newController(cfg, remember, recall, getFact, removeFact, mcpHandler, authentication, false)
+}
+
+// newController is the single place the two constructors share, so the fields they
+// set cannot drift apart.
+func newController(
+	cfg Config,
+	remember Remember,
+	recall Recall,
+	getFact GetFact,
+	removeFact RemoveFact,
+	mcpHandler http.Handler,
+	authentication Authentication,
+	authRequired bool,
 ) *Controller {
 	return &Controller{
 		cfg:            cfg,
@@ -42,6 +77,7 @@ func New(
 		removeFact:     removeFact,
 		mcpHandler:     mcpHandler,
 		authentication: authentication,
+		authRequired:   authRequired,
 	}
 }
 
@@ -50,6 +86,14 @@ func (c *Controller) HandleBearerAuth(
 	operationName server.OperationName,
 	t server.BearerAuth,
 ) (context.Context, error) {
+	// With authentication off the header carries no meaning: the embedded
+	// backend serves one local operator and ignores userID. Accepting the request
+	// without resolving anything keeps the API open, exactly as it was before
+	// tokens existed.
+	if !c.authRequired {
+		return ctx, nil
+	}
+
 	u, err := c.authentication.GetUserByToken(ctx, t.Token)
 	if err != nil {
 		return ctx, err
@@ -66,16 +110,17 @@ func (c *Controller) Run(
 
 	opts := ServerOptions()
 	api, err := server.NewServer(&Methods{
-		remember:   c.remember,
-		recall:     c.recall,
-		getFact:    c.getFact,
-		removeFact: c.removeFact,
+		remember:     c.remember,
+		recall:       c.recall,
+		getFact:      c.getFact,
+		removeFact:   c.removeFact,
+		authRequired: c.authRequired,
 	}, c, opts...)
 	if err != nil {
 		return err
 	}
 
-	spa, err := newSPAHandler()
+	spa, err := newSPAHandler(c.authRequired)
 	if err != nil {
 		return err
 	}

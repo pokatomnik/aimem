@@ -12,6 +12,11 @@ tags:
     description: Memory management API
 security:
   - bearerAuth: []
+  # The second entry makes the header optional at the protocol level: whether it
+  # is actually required depends on the storage backend, and only the server
+  # knows that. The handlers enforce it and answer 401 themselves when the
+  # deployment is per-user, so the spec cannot declare it mandatory for everyone.
+  - {}
 paths:
   /api/v1/fact:
     post:

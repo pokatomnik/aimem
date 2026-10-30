@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -29,7 +30,7 @@ import (
 	ucRemoveFactPackage "github.com/pokatomnik/gomem/internal/use_cases/removefact"
 )
 
-func scaffold() (*cobra.Command, error) {
+func scaffold(ctx context.Context) (*cobra.Command, error) {
 	configPath, err := config.ConfigPath()
 	if err != nil {
 		return nil, err
@@ -64,7 +65,18 @@ func scaffold() (*cobra.Command, error) {
 
 	embeddedDB := rKVPackage.New(cfg, path.Join(userHome, ".aimem"))
 	qdrantDB := rQdrantPackage.New(cfg, client)
-	users := rUsersPackage.New()
+	users := rUsersPackage.New(cfg)
+
+	// One decision, taken once and expressed in the constructors below: whether this
+	// deployment is per-user at all. It follows the storage backend, not the file
+	// contents — Qdrant partitions by user and therefore needs a token, the embedded
+	// index serves one local operator and ignores the user ID. With Qdrant and no
+	// [[users]] this call fails, which stops the app before it serves anything a
+	// client could not get past.
+	authRequired, err := users.RequireAuthentication(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	aOllama := aOllamaPackage.New(client, cfg)
 
@@ -80,19 +92,34 @@ func scaffold() (*cobra.Command, error) {
 	}
 
 	mcpDeps := mcp.MCPDeps{
-		Remember:       rem,
-		Recall:         rec,
-		GetFact:        fac,
-		RemoveFact:     del,
-		Authentication: users,
+		Remember:   rem,
+		Recall:     rec,
+		GetFact:    fac,
+		RemoveFact: del,
 	}
 
-	aMCPHTTP, err := aMCPHTTPPackage.TryCreate(mcpDeps)
-	if err != nil {
-		return nil, err
-	}
+	// One branch, both servers. The constructors are chosen from the same answer, so
+	// the web API and the MCP tools cannot end up in different modes.
+	var (
+		aMCPHTTP      *aMCPHTTPPackage.HTTP
+		webController *cmdWebPackage.Controller
+	)
 
-	webController := cmdWebPackage.New(cfg, rem, rec, fac, del, aMCPHTTP, users)
+	if authRequired {
+		aMCPHTTP, err = aMCPHTTPPackage.TryCreateWithAuth(mcpDeps, users)
+		if err != nil {
+			return nil, err
+		}
+
+		webController = cmdWebPackage.NewWithAuth(cfg, rem, rec, fac, del, aMCPHTTP, users)
+	} else {
+		aMCPHTTP, err = aMCPHTTPPackage.TryCreateWithoutAuth(mcpDeps)
+		if err != nil {
+			return nil, err
+		}
+
+		webController = cmdWebPackage.NewWithoutAuth(cfg, rem, rec, fac, del, aMCPHTTP, users)
+	}
 
 	web := cmdWebCLIPackage.NewWebController(webController)
 

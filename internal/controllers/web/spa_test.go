@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -23,11 +24,19 @@ func spaTestFS() fstest.MapFS {
 	}
 }
 
+// spaRequest serves target with authentication off, which is the common case in
+// these tests: the flag only changes index.html.
 func spaRequest(t *testing.T, fsys fs.FS, method, target string) *httptest.ResponseRecorder {
 	t.Helper()
 
+	return spaRequestAuth(t, fsys, method, target, false)
+}
+
+func spaRequestAuth(t *testing.T, fsys fs.FS, method, target string, authRequired bool) *httptest.ResponseRecorder {
+	t.Helper()
+
 	rec := httptest.NewRecorder()
-	newFileHandler(fsys).ServeHTTP(rec, httptest.NewRequest(method, target, nil))
+	newFileHandler(fsys, authRequired).ServeHTTP(rec, httptest.NewRequest(method, target, nil))
 
 	return rec
 }
@@ -257,4 +266,72 @@ func spaAssetRefs(t *testing.T, html string) []string {
 	}
 
 	return refs
+}
+
+// The flag has to reach the entry document, because that is the only thing the
+// UI reads before it renders. There is no endpoint for it by design.
+func TestSPAInjectsAuthFlag(t *testing.T) {
+	tests := []struct {
+		name         string
+		authRequired bool
+		want         string
+	}{
+		{name: "authentication off", authRequired: false, want: "window.requireAuth=false"},
+		{name: "authentication on", authRequired: true, want: "window.requireAuth=true"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := spaRequestAuth(t, spaTestFS(), http.MethodGet, "/", tt.authRequired)
+
+			body := rec.Body.String()
+
+			if !strings.Contains(body, tt.want) {
+				t.Errorf("index.html does not carry %q: %s", tt.want, body)
+			}
+
+			// It must run before the entry module, which is in the body.
+			if strings.Index(body, "window.requireAuth") > strings.Index(body, "assets/index-CT2NxLkI.js") {
+				t.Error("the flag is injected after the entry module, so it would be read too late")
+			}
+		})
+	}
+}
+
+// Assets are content-hashed and cached forever, so rewriting them would make the
+// served bytes disagree with the name the browser cached.
+func TestSPAAuthFlagIsNotInjectedIntoAssets(t *testing.T) {
+	rec := spaRequestAuth(t, spaTestFS(), http.MethodGet, "/assets/index-CT2NxLkI.js", true)
+
+	if got := rec.Body.String(); strings.Contains(got, "requireAuth") {
+		t.Errorf("asset was rewritten: %q", got)
+	}
+
+	if got, want := rec.Body.String(), "console.log(1)"; got != want {
+		t.Errorf("body = %q, want the original asset %q", got, want)
+	}
+}
+
+// Content-Length is computed after injection, so the browser is not told the
+// original size of the file.
+func TestSPAInjectedIndexHasMatchingContentLength(t *testing.T) {
+	rec := spaRequestAuth(t, spaTestFS(), http.MethodGet, "/", true)
+
+	if got, want := rec.Header().Get("Content-Length"), strconv.Itoa(rec.Body.Len()); got != want {
+		t.Errorf("Content-Length = %q, body length = %s", got, want)
+	}
+}
+
+// A document without a head is malformed, but the flag still has to be there:
+// defaulting to "no auth" would silently unlock a deployment that needs a token.
+func TestSPAInjectsAuthFlagWithoutHead(t *testing.T) {
+	fsys := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte(`<body><div id="root"></div></body>`)},
+	}
+
+	rec := spaRequestAuth(t, fsys, http.MethodGet, "/", true)
+
+	if got := rec.Body.String(); !strings.Contains(got, "window.requireAuth=true") {
+		t.Errorf("flag missing from a headless document: %q", got)
+	}
 }

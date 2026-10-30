@@ -175,6 +175,7 @@ func (c *Client) sendAddFact(ctx context.Context, request *AddFactReq) (res AddF
 		nextRequirement:
 			for _, requirement := range []bitset{
 				{0b00000001},
+				{},
 			} {
 				for i, mask := range requirement {
 					if satisfied[i]&mask != mask {
@@ -306,6 +307,7 @@ func (c *Client) sendGetFactByID(ctx context.Context, params GetFactByIDParams) 
 		nextRequirement:
 			for _, requirement := range []bitset{
 				{0b00000001},
+				{},
 			} {
 				for i, mask := range requirement {
 					if satisfied[i]&mask != mask {
@@ -437,6 +439,7 @@ func (c *Client) sendRemoveFactByID(ctx context.Context, params RemoveFactByIDPa
 		nextRequirement:
 			for _, requirement := range []bitset{
 				{0b00000001},
+				{},
 			} {
 				for i, mask := range requirement {
 					if satisfied[i]&mask != mask {
@@ -553,6 +556,7 @@ func (c *Client) sendSearch(ctx context.Context, request *SearchRequestBody) (re
 		nextRequirement:
 			for _, requirement := range []bitset{
 				{0b00000001},
+				{},
 			} {
 				for i, mask := range requirement {
 					if satisfied[i]&mask != mask {

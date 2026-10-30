@@ -1,7 +1,6 @@
 package web
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -10,23 +9,6 @@ import (
 	"github.com/pokatomnik/gomem/internal/controllers/web/server"
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 )
-
-// NewError maps domain errors to the common default response.
-//
-// It must stay consistent with RequestErrorHandler, which serves as the
-// generated server's error handler and therefore sees the same domain errors.
-// Both go through mapDomainError so the two entry points cannot drift apart.
-func (m *Methods) NewError(ctx context.Context, err error) *server.AppErrorStatusCode {
-	code, ec := mapDomainError(err)
-
-	return &server.AppErrorStatusCode{
-		StatusCode: code,
-		Response: server.AppError{
-			Error:   ec,
-			Message: server.NewOptString(err.Error()),
-		},
-	}
-}
 
 // mapDomainError converts a domain error into the status code and body code it
 // deserves. It is the single source of truth for that mapping: every caller

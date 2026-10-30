@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"embed"
 	"io/fs"
 	"net/http"
@@ -46,18 +47,22 @@ var spaContentTypes = map[string]string{
 }
 
 // newSPAHandler returns the handler backed by the embedded build.
-func newSPAHandler() (http.Handler, error) {
+//
+// authRequired is baked into the served index.html rather than exposed through
+// an endpoint: the UI needs the answer before it renders anything, and the page
+// that boots it is the one place the server can hand it over without a request.
+func newSPAHandler(authRequired bool) (http.Handler, error) {
 	fsys, err := fs.Sub(spaDist, spaDistDir)
 	if err != nil {
 		return nil, err
 	}
 
-	return newFileHandler(fsys), nil
+	return newFileHandler(fsys, authRequired), nil
 }
 
 // newFileHandler serves files from fsys. It exists as a seam: tests pass an
 // fstest.MapFS, so they exercise the serving rules without the real build.
-func newFileHandler(fsys fs.FS) http.Handler {
+func newFileHandler(fsys fs.FS, authRequired bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			w.Header().Set("Allow", http.MethodGet+", "+http.MethodHead)
@@ -71,7 +76,7 @@ func newFileHandler(fsys fs.FS) http.Handler {
 			name = spaIndexFile
 		}
 
-		serveFile(w, r, fsys, name)
+		serveFile(w, r, fsys, name, authRequired)
 	})
 }
 
@@ -80,7 +85,7 @@ func newFileHandler(fsys fs.FS) http.Handler {
 // There is deliberately no SPA fallback: the app uses HashRouter, so the route
 // lives after '#' and the server only ever sees "/". A missing path is a bug in
 // the request, not a client-side route.
-func serveFile(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string) {
+func serveFile(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string, authRequired bool) {
 	// ValidPath rejects the empty name, "." and ".." components, so a request
 	// cannot escape the embedded tree. net/http hands over an already decoded
 	// path, which means %2e%2e arrives here as "..".
@@ -99,6 +104,12 @@ func serveFile(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string) 
 		return
 	}
 
+	// Only the entry document is rewritten: the flag is meaningless in an asset,
+	// and injecting into a hashed file would break the cache promise made for it.
+	if name == spaIndexFile {
+		data = injectAuthFlag(data, authRequired)
+	}
+
 	header := w.Header()
 	header.Set("Content-Type", spaContentType(name))
 	header.Set("Content-Length", strconv.Itoa(len(data)))
@@ -111,6 +122,44 @@ func serveFile(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string) 
 	}
 
 	_, _ = w.Write(data)
+}
+
+// spaAuthFlagScript sets the global the UI reads on boot.
+//
+// It is a plain assignment rather than JSON-in-attribute: the value is a bool we
+// generate ourselves, so there is nothing to escape, and the UI only has to read
+// one property. The name matches what `main.tsx` looks up.
+const spaAuthFlagScript = `<script>window.requireAuth=%s</script>`
+
+// injectAuthFlag inserts the flag into the document's head.
+//
+// The head is the target because the entry module is deferred to the body:
+// anything in head runs first, so the UI never reads an undefined global. A
+// document without a head is treated as malformed rather than patched, since a
+// build that lost its head would not boot anyway.
+func injectAuthFlag(html []byte, authRequired bool) []byte {
+	value := "false"
+	if authRequired {
+		value = "true"
+	}
+
+	script := []byte(strings.Replace(spaAuthFlagScript, "%s", value, 1))
+
+	const headClose = "</head>"
+
+	at := bytes.Index(html, []byte(headClose))
+	if at < 0 {
+		// No head: put the flag first anyway, so a trimmed build still carries the
+		// answer instead of silently defaulting to "no auth".
+		return append(script, html...)
+	}
+
+	out := make([]byte, 0, len(html)+len(script))
+	out = append(out, html[:at]...)
+	out = append(out, script...)
+	out = append(out, html[at:]...)
+
+	return out
 }
 
 // spaContentType guesses from the extension and falls back to octet-stream,

@@ -137,14 +137,36 @@ no error. Compare your file against the table when something behaves oddly.
 > If you change it after the database has been created, recreate it — delete
 > `~/.aimem` for the embedded backend, or drop the Qdrant collections.
 
-### 3. Add users and tokens
+### 3. Add users and tokens (Qdrant only)
 
-Every API request and every MCP tool call is authenticated, so a configuration
-without users serves nothing but `401`: the server needs at least one token to
-know whose memory a request belongs to.
+Whether the server asks for a token is decided by the **storage backend**, not by
+this file:
 
-`aimem init` does not write this section — add it to `~/.config/aimem/config.toml`
-by hand, after the main keys:
+| Backend         | `[[users]]` section | Authentication                 |
+| --------------- | ------------------- | ------------------------------ |
+| Embedded (`kv`) | ignored             | not required — the API is open |
+| Qdrant          | **required**        | every request needs a token    |
+
+With the embedded backend there is nothing to partition: `~/.aimem` is one
+operator's local files, and `userID` is not used by the storage at all. A
+`[[users]]` section there is simply ignored, so nothing breaks if you add one and
+later stay on the embedded backend.
+
+With Qdrant each user gets a separate collection, so the server cannot answer a
+request without knowing who is asking. **`aimem` refuses to start when Qdrant is
+configured and no user is defined**, with:
+
+```
+no users configured
+```
+
+That failure is deliberate: starting anyway would answer every request with
+`401` and leave no way to fix it from the UI.
+
+#### The section
+
+`aimem init` does not write `[[users]]` — add it to
+`~/.config/aimem/config.toml` by hand, after the main keys:
 
 ```toml
 [[users]]
@@ -156,24 +178,47 @@ id = "bob"
 tokens = ["another-random-string", "a-second-token-for-bob"]
 ```
 
-| Key      | Description                                                         |
-| -------- | ------------------------------------------------------------------- |
-| `id`     | Identifies the user. It becomes part of the Qdrant collection name. |
-| `tokens` | Any number of tokens; each one authenticates as this user.          |
+| Key      | Required | Description                                                            |
+| -------- | -------- | ---------------------------------------------------------------------- |
+| `id`     | yes      | Identifies the user. Becomes part of the Qdrant collection name.       |
+| `tokens` | no       | Any number of tokens; each one authenticates the request as this user. |
+
+`id` is the only field that describes the user; `tokens` are credentials, not
+identity. A user with no tokens can be configured but will never authenticate.
+
+#### The `id` format is the collection-name format
+
+`id` is not free-form. It is used verbatim to build the collection name
+`memory-<id>`, so it must satisfy Qdrant's collection naming rules:
+
+- **ASCII letters, digits, `_` and `-` only.**
+- No spaces, no dots, no `/`, no `@`, no non-ASCII characters.
+- Practical bounds: keep it short, and do not start it with `_` or `-`.
+
+```toml
+# correct
+id = "alice"
+id = "team-1_a"
+
+# wrong — Qdrant rejects the resulting collection name
+id = "alice@example.com"
+id = "Иван"
+id = "my team"
+```
+
+A `/` is the worst case: it would address a different URL path entirely. An email
+address is the most common mistake, since it looks like a natural identifier.
+The adapter trims surrounding whitespace and nothing else, so what you write is
+what reaches Qdrant.
+
+Because each user owns a whole collection, two users storing the same text do not
+collide — that is why the partition is per collection rather than a field in the
+shared one.
 
 A user can hold several tokens, which is how you rotate one without downtime:
 add the new token, switch the client, then remove the old one. The lookup is a
 linear scan over this file on every request — it is small by design and read from
 disk each time, so an edit takes effect without restarting the server.
-
-> `id` becomes part of a Qdrant collection name (`memory-<id>`), and Qdrant
-> accepts only ASCII letters, digits, `_` and `-` there. Use such an identifier;
-> anything else produces a collection the adapter cannot address.
-
-How the two backends use the id differs: Qdrant keeps one collection per user,
-so users never see each other's facts. The embedded backend ignores it entirely —
-`~/.aimem` is local files for a single operator, and every token reads the same
-data there.
 
 ### 4. Start the vector database (Qdrant)
 
@@ -432,6 +477,37 @@ aimem web
 Open `http://127.0.0.1:8888` for the UI — search, add, read and delete facts. It
 is a single-page app using hash routing, embedded into the binary at build time.
 
+#### The token prompt
+
+The UI asks for a token only when the server requires one. There is no endpoint
+for that answer: the server writes it into the page it serves, as a global the
+entry script reads before it renders.
+
+```html
+<script>
+  window.requireAuth = true;
+</script>
+```
+
+The value comes from the same startup decision that gates the API, so the page and
+the handlers cannot disagree:
+
+- **Embedded backend** → `false`. The UI opens straight into the app.
+- **Qdrant** → `true`. The UI shows a single "Access token" field and nothing else
+  until one is saved; every request is then signed with it.
+
+Only `index.html` is rewritten, under `no-cache`; hashed assets are served
+byte-for-byte and keep their immutable caching. A page served without the global
+(an older build, a static host) is read as `false` — the safe default, since
+locking the user out of an API that needs no token is worse than one rejected
+request.
+
+The token is stored in the browser's `localStorage` under `aimem.token`, so it
+survives a reload. There is deliberately no logout and no session expiry: to
+drop access, remove the token from `[[users]]` in `config.toml` — the server
+re-reads the file on every request, so the token stops working immediately while
+any copy in a browser becomes a harmless stale string.
+
 The API contract lives in `internal/controllers/web/openapi.yaml`.
 
 | Method   | Path                    | Body                       | Returns                       |
@@ -454,12 +530,16 @@ the mapping:
 | Status | When                                                                      |
 | ------ | ------------------------------------------------------------------------- |
 | `400`  | Malformed request — bad JSON, a body failing validation, a short `query`. |
-| `401`  | The `Authorization` header is missing, or its token is not in the config. |
+| `401`  | Qdrant is selected and no valid token came with the request.              |
 | `404`  | Unknown route, or a fact that does not exist (`GET` and `DELETE` alike).  |
 | `409`  | The fact already exists (`ALREADY_HAS_FACT`).                             |
 | `422`  | Ollama returned no usable embedding.                                      |
 | `502`  | Ollama itself failed.                                                     |
 | `500`  | Anything else, including a storage conversion error.                      |
+
+`401` only happens with Qdrant. With the embedded backend the same endpoints
+answer anonymously, because there is one local operator and nothing to
+partition — a token sent there is ignored rather than rejected.
 
 Any path under `/api/` is answered as JSON, so a version typo like
 `/api/v2/search` returns a JSON 404 instead of the UI's HTML. The three
@@ -492,19 +572,16 @@ batch is therefore safe: the duplicates are rejected and the rest go through.
 
 ## Data location
 
-With the **embedded** backend all data is stored in `~/.aimem`:
-
-- the xvec collection with embeddings and metadata;
-- `plain.jsonl`, an append-only log of saved facts.
-
-`plain.jsonl` records additions only: removing a fact deletes it from the
-collection but leaves the line in the log. Delete the whole directory to start
-from scratch.
+With the **embedded** backend all data is stored in `~/.aimem`: the xvec
+collection with embeddings and metadata. Delete the whole directory to start from
+scratch.
 
 With **Qdrant** the facts live in the collections described above and nothing is
-written to `~/.aimem`. Note that `plain.jsonl` is a feature of the embedded
-backend only — the Qdrant repository does not append to it. To reset, drop the
-collections; `docker compose down -v` wipes the bundled instance entirely.
+written to `~/.aimem`. To reset, drop the collections; `docker compose down -v`
+wipes the bundled instance entirely.
+
+There is no export file. Facts are readable through the API, the UI and the MCP
+tools; a bulk export was removed and is not part of the current behaviour.
 
 Stored records are immutable on both backends — see
 [Records are immutable](#records-are-immutable).

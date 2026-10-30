@@ -35,9 +35,8 @@ Code is layered, with dependencies pointing inward:
 - `internal/repositories/users/` — reads the `[[users]]` entries of
   `config.toml` and resolves a bearer token to a user. Read from disk on every
   call, so an edit takes effect without a restart.
-- `internal/repositories/kv/` — the embedded backend; also writes `plain.jsonl`, an
-  append-only log of additions. The xvec collection sits behind the unexported
-  `collection` interface so tests can fake it.
+- `internal/repositories/kv/` — the embedded backend. The xvec collection sits
+  behind the unexported `collection` interface so tests can fake it.
 - `internal/repositories/qdrant/` — the same storage contract backed by Qdrant over
   HTTP; keeps the `kv` schema and satisfies the use cases' interfaces.
 - `internal/adapters/` — outbound integrations (`ollama`) and inbound input
@@ -87,7 +86,56 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
 - **Writes are one fact per request.** The API has no bulk endpoint, and the
   former `import` command no longer exists; a client that needs bulk insertion
   issues one `POST /api/v1/fact` per fact.
-- **`plain.jsonl` is append-only.** Removing a fact does not rewrite it, by design.
+- **Authentication follows the storage backend, not the config contents.**
+  `users.RequireAuthentication` makes that one decision: with the embedded backend
+  it returns `false` and every request runs anonymously (the `[[users]]` section,
+  if present, is ignored, because `kv` ignores `userID`); with Qdrant it returns
+  `true` and **fails to start** with `ErrNoUsersConfigured` when no user is
+  defined.
+
+  It is asked once, in `scaffold`, with the context `main` provides — and the
+  answer is expressed the same way for both servers: **two constructors each**, no
+  bool argument, no per-call check.
+
+  - `cmdWebPackage.NewWithAuth` / `NewWithoutAuth` set the unexported
+    `authRequired` field.
+  - `aMCPHTTPPackage.TryCreateWithAuth` / `TryCreateWithoutAuth` (over
+    `mcp.CreateServerWithAuth` / `CreateServerWithoutAuth`) inject either
+    `tools.NewTokenAuthenticator(users)` or `tools.NewAnonymousAuthenticator()`.
+
+  A tool calls `a.UserID(ctx, req)` and nothing else: which authenticator was
+  injected _is_ the mode, so a tool holds no branch of its own and cannot disagree
+  with the web API. Do not reintroduce a per-call `RequireAuthentication` in the
+  tools, and do not add a `WithAuth(bool)` variant — a bool at the end of a long
+  argument list is exactly the kind of thing that gets flipped by accident.
+
+  The one branch lives in `scaffold` and picks both constructors from the same
+  value, so the API and the tools cannot end up in different modes. Credential
+  parsing (`tools.NewTokenAuthenticator`) stays apart from the decision: an
+  authenticator turns a header into a user ID, it does not judge a deployment.
+
+  The answer then travels as `Methods.authRequired` (which `Methods.getUserID`
+  enforces by refusing an empty user) and as the `authRequired` baked into the
+  served page. `getUserID` checks the mode _before_ reading the context: with
+  auth off the user is never looked up, so a stale value cannot travel into a
+  store that ignores it. Do not swap those two steps — reading the context first
+  makes the function fetch something it has decided it will not use.
+
+  Do not move the decision into the handlers: it has to exist before the first
+  request, since a server that starts and then answers 401 forever gives the
+  operator no way out.
+
+- **The token prompt is baked into the served HTML, not exposed as an endpoint.**
+  `newSPAHandler` takes `authRequired` and `injectAuthFlag` writes
+  `<script>window.requireAuth=…</script>` into `index.html`'s head, before the
+  entry module runs. Only the entry document is rewritten; hashed assets are
+  served untouched so their immutable caching stays honest. The answer comes from
+  the same `authRequired` value the handlers enforce, so the page and the API
+  cannot disagree. Do not add a `GET /api/v1/auth` endpoint for this: the server
+  already knows the answer when it builds the page, and an endpoint would let the
+  two drift. The token lives in `localStorage` under `aimem.token`; there is no
+  logout by design — revoking a token means editing `[[users]]`, which takes
+  effect on the next request because the file is re-read every time.
 
 ## Prompts and Documentation
 

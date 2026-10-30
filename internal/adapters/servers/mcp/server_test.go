@@ -33,20 +33,29 @@ func (f *fakeDeps) RemoveFactByID(ctx context.Context, userID, id string) error 
 	return nil
 }
 
-func (f *fakeDeps) GetUserByToken(ctx context.Context, token string) (user.User, error) {
+// fakeAuth is the token store the authenticated constructor receives. Only the
+// resolved ID matters here; the token parsing is covered in the tools package.
+type fakeAuth struct{}
+
+func (fakeAuth) GetUserByToken(ctx context.Context, token string) (user.User, error) {
 	return user.User{ID: "u-" + token}, nil
 }
 
-func connect(t *testing.T, deps MCPDeps) (*sdk.ClientSession, context.Context) {
+// connect builds a server through one of the two constructors, so every test goes
+// through the same wiring production uses.
+type buildFunc func(MCPDeps) (*sdk.Server, error)
+
+func connect(t *testing.T, build buildFunc, deps MCPDeps) (*sdk.ClientSession, context.Context) {
 	t.Helper()
 
-	server, err := CreateServer(deps)
+	ctx := context.Background()
+
+	server, err := build(deps)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	serverT, clientT := sdk.NewInMemoryTransports()
-	ctx := context.Background()
 
 	go func() { _ = server.Run(ctx, serverT) }()
 
@@ -61,20 +70,29 @@ func connect(t *testing.T, deps MCPDeps) (*sdk.ClientSession, context.Context) {
 	return cs, ctx
 }
 
+// withAuth is the production wiring for Qdrant: every call needs a token.
+func withAuth(deps MCPDeps) (*sdk.Server, error) {
+	return CreateServerWithAuth(deps, fakeAuth{})
+}
+
+// withoutAuth is the production wiring for the embedded backend.
+func withoutAuth(deps MCPDeps) (*sdk.Server, error) {
+	return CreateServerWithoutAuth(deps)
+}
+
 func deps() MCPDeps {
 	f := &fakeDeps{}
 
 	return MCPDeps{
-		Remember:       f,
-		Recall:         f,
-		GetFact:        f,
-		RemoveFact:     f,
-		Authentication: f,
+		Remember:   f,
+		Recall:     f,
+		GetFact:    f,
+		RemoveFact: f,
 	}
 }
 
 func TestToolDescriptions(t *testing.T) {
-	cs, ctx := connect(t, deps())
+	cs, ctx := connect(t, withAuth, deps())
 
 	res, err := cs.ListTools(ctx, nil)
 	if err != nil {
@@ -120,7 +138,7 @@ func TestToolDescriptions(t *testing.T) {
 }
 
 func TestInstructionsMentionEveryTool(t *testing.T) {
-	cs, _ := connect(t, deps())
+	cs, _ := connect(t, withAuth, deps())
 
 	init := cs.InitializeResult()
 	if init == nil {
@@ -148,7 +166,7 @@ func TestInstructionsMentionEveryTool(t *testing.T) {
 }
 
 func TestInstructionsCoverProactiveRecall(t *testing.T) {
-	cs, _ := connect(t, deps())
+	cs, _ := connect(t, withAuth, deps())
 
 	init := cs.InitializeResult()
 	if init == nil {
@@ -176,21 +194,61 @@ func TestInstructionsCoverProactiveRecall(t *testing.T) {
 	}
 }
 
-// A call made over a transport that carries no HTTP headers must be refused, not
-// answered: there are no credentials, so there is no user to read or write for.
-func TestCallWithoutHeadersIsRefused(t *testing.T) {
-	cs, ctx := connect(t, deps())
-
-	res, err := cs.CallTool(ctx, &sdk.CallToolParams{
-		Name:      "recall",
-		Arguments: map[string]any{"query": "anything"},
-	})
-	if err != nil {
-		t.Fatalf("CallTool: %v", err)
+// A call made over a transport that carries no HTTP headers has no credentials.
+// The two constructors are the only thing that decides what that means: with auth
+// there is no user to act for, without auth the call goes through as it always did.
+func TestCallWithoutHeaders(t *testing.T) {
+	tests := []struct {
+		name        string
+		build       buildFunc
+		wantRefused bool
+	}{
+		{name: "with auth", build: withAuth, wantRefused: true},
+		{name: "without auth", build: withoutAuth, wantRefused: false},
 	}
 
-	if !res.IsError {
-		t.Fatal("call succeeded without credentials")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cs, ctx := connect(t, tt.build, deps())
+
+			res, err := cs.CallTool(ctx, &sdk.CallToolParams{
+				Name:      "recall",
+				Arguments: map[string]any{"query": "anything"},
+			})
+			if err != nil {
+				t.Fatalf("CallTool: %v", err)
+			}
+
+			if res.IsError != tt.wantRefused {
+				t.Errorf("IsError = %v, want %v", res.IsError, tt.wantRefused)
+			}
+		})
+	}
+}
+
+// Both constructors must expose the same tools: the mode changes who may call
+// them, never what exists.
+func TestBothConstructorsExposeEveryTool(t *testing.T) {
+	builds := map[string]buildFunc{"with auth": withAuth, "without auth": withoutAuth}
+
+	for name, build := range builds {
+		t.Run(name, func(t *testing.T) {
+			cs, ctx := connect(t, build, deps())
+
+			res, err := cs.ListTools(ctx, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			names := make([]string, 0, len(res.Tools))
+			for _, tool := range res.Tools {
+				names = append(names, tool.Name)
+			}
+
+			if len(names) != 4 {
+				t.Errorf("tools = %v, want 4", names)
+			}
+		})
 	}
 }
 

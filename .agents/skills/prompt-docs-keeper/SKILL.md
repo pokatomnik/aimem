@@ -99,9 +99,6 @@ Check these before trusting any sentence in the docs. Each one has already been 
   HTTP) both satisfy the use cases' interfaces; `scaffold` selects Qdrant when
   `[qdrant] host` is non-empty. Text describing "the" database must say which one
   it means, or cover both.
-- **`plain.jsonl` is written by `kv` only**, from `AddFact` alone. It is an
-  append-only log of additions: `RemoveFactByID` does not rewrite it, and the
-  Qdrant backend never touches it. Do not describe it as a mirror of the store.
 - **The score direction differs.** `kv` converts xvec's cosine _distance_ with
   `1 - Score`; Qdrant already reports a similarity and must not be inverted.
   A doc sentence about `similarityThreshold` is true for both only if it stays

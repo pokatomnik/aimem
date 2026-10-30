@@ -42,5 +42,5 @@ func (k *KV) AddFact(ctx context.Context, userID string, vector []float32, summa
 		}
 	}
 
-	return k.appendPlainTextMessage(content)
+	return nil
 }

@@ -19,7 +19,7 @@ type (
 	}
 )
 
-func ToolGetFact(a mcpdeps.Authentication, r mcpdeps.GetFact) (
+func ToolGetFact(a mcpdeps.Authenticator, r mcpdeps.GetFact) (
 	mcp.Tool,
 	mcp.ToolHandlerFor[getFactInput, getFactOutput],
 	error,
@@ -41,7 +41,7 @@ func ToolGetFact(a mcpdeps.Authentication, r mcpdeps.GetFact) (
 		getFactOutput,
 		error,
 	) {
-		userID, err := authenticate(ctx, req, a)
+		userID, err := a.UserID(ctx, req)
 		if err != nil {
 			return &mcp.CallToolResult{IsError: true}, getFactOutput{}, err
 		}

@@ -134,6 +134,7 @@ func (s *Server) handleAddFactRequest(args [0]string, argsEscaped bool, w http.R
 		nextRequirement:
 			for _, requirement := range []bitset{
 				{0b00000001},
+				{},
 			} {
 				for i, mask := range requirement {
 					if satisfied[i]&mask != mask {
@@ -321,6 +322,7 @@ func (s *Server) handleGetFactByIDRequest(args [1]string, argsEscaped bool, w ht
 		nextRequirement:
 			for _, requirement := range []bitset{
 				{0b00000001},
+				{},
 			} {
 				for i, mask := range requirement {
 					if satisfied[i]&mask != mask {
@@ -508,6 +510,7 @@ func (s *Server) handleRemoveFactByIDRequest(args [1]string, argsEscaped bool, w
 		nextRequirement:
 			for _, requirement := range []bitset{
 				{0b00000001},
+				{},
 			} {
 				for i, mask := range requirement {
 					if satisfied[i]&mask != mask {
@@ -695,6 +698,7 @@ func (s *Server) handleSearchRequest(args [0]string, argsEscaped bool, w http.Re
 		nextRequirement:
 			for _, requirement := range []bitset{
 				{0b00000001},
+				{},
 			} {
 				for i, mask := range requirement {
 					if satisfied[i]&mask != mask {
