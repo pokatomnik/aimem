@@ -30,7 +30,7 @@ GO_LDFLAGS     := -s -w -buildid=
 # is not ours to test. Expanded at recipe time, so dist/ exists by then.
 GO_PACKAGES = $$($(GO) list ./... | grep -v /node_modules)
 
-.PHONY: all build install test generate clean ui-install ui-build ui-test ui-lint ui-typecheck
+.PHONY: all build install test generate api-generate clean ui-install ui-build ui-test ui-lint ui-typecheck
 
 all: build
 
@@ -68,6 +68,13 @@ test: ui-build
 # Regenerate code from //go:generate directives (currently ogen from OpenAPI).
 generate:
 	$(GO) generate ./...
+
+# Regenerate both sides of the API contract: the Go server (ogen) and the UI
+# client types (openapi-typescript). They are generated from the same
+# openapi.yaml, so running one without the other leaves the client typed against
+# stale shapes — a mismatch that only shows up as a tsc failure much later.
+api-generate: generate
+	cd $(UI_DIR) && $(NPM) run api:generate
 
 clean:
 	rm -rf $(BUILD_DIR) $(UI_DIST)

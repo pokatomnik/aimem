@@ -9,13 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/pokatomnik/gomem/internal/adapters/servers/mcp"
-	"github.com/pokatomnik/gomem/internal/shared/colors"
-
-	config "github.com/pokatomnik/gomem/cmd/aimem/config"
+	"github.com/pokatomnik/gomem/cmd/aimem/config"
 	aInputPackage "github.com/pokatomnik/gomem/internal/adapters/input"
 	aOllamaPackage "github.com/pokatomnik/gomem/internal/adapters/ollama"
-	aMCPHTTPPackage "github.com/pokatomnik/gomem/internal/adapters/servers/http"
+	aMCPPackage "github.com/pokatomnik/gomem/internal/adapters/servers/mcp"
 	cmdInitPackage "github.com/pokatomnik/gomem/internal/controllers/cli/init"
 	cmdRootPackage "github.com/pokatomnik/gomem/internal/controllers/cli/root"
 	cmdWebCLIPackage "github.com/pokatomnik/gomem/internal/controllers/cli/web"
@@ -23,6 +20,7 @@ import (
 	rKVPackage "github.com/pokatomnik/gomem/internal/repositories/kv"
 	rQdrantPackage "github.com/pokatomnik/gomem/internal/repositories/qdrant"
 	rUsersPackage "github.com/pokatomnik/gomem/internal/repositories/users"
+	"github.com/pokatomnik/gomem/internal/shared/colors"
 	ucGetFactPackage "github.com/pokatomnik/gomem/internal/use_cases/getfact"
 	ucInitPackage "github.com/pokatomnik/gomem/internal/use_cases/init"
 	ucRecallPackage "github.com/pokatomnik/gomem/internal/use_cases/recall"
@@ -91,34 +89,34 @@ func scaffold(ctx context.Context) (*cobra.Command, error) {
 		del = ucRemoveFactPackage.New(qdrantDB)
 	}
 
-	mcpDeps := mcp.MCPDeps{
+	mcpDeps := aMCPPackage.MCPDeps{
 		Remember:   rem,
 		Recall:     rec,
 		GetFact:    fac,
 		RemoveFact: del,
 	}
 
-	// One branch, both servers. The constructors are chosen from the same answer, so
-	// the web API and the MCP tools cannot end up in different modes.
+	// One branch, both servers. Each pair of constructors is chosen from the same
+	// answer, so the web API and the MCP endpoint cannot end up in different modes.
 	var (
-		aMCPHTTP      *aMCPHTTPPackage.HTTP
+		aMCP          *aMCPPackage.Server
 		webController *cmdWebPackage.Controller
 	)
 
 	if authRequired {
-		aMCPHTTP, err = aMCPHTTPPackage.TryCreateWithAuth(mcpDeps, users)
+		aMCP, err = aMCPPackage.NewWithAuth(mcpDeps, users)
 		if err != nil {
 			return nil, err
 		}
 
-		webController = cmdWebPackage.NewWithAuth(cfg, rem, rec, fac, del, aMCPHTTP, users)
+		webController = cmdWebPackage.NewWithAuth(cfg, rem, rec, fac, del, aMCP, users)
 	} else {
-		aMCPHTTP, err = aMCPHTTPPackage.TryCreateWithoutAuth(mcpDeps)
+		aMCP, err = aMCPPackage.NewWithoutAuth(mcpDeps)
 		if err != nil {
 			return nil, err
 		}
 
-		webController = cmdWebPackage.NewWithoutAuth(cfg, rem, rec, fac, del, aMCPHTTP, users)
+		webController = cmdWebPackage.NewWithoutAuth(cfg, rem, rec, fac, del, aMCP, users)
 	}
 
 	web := cmdWebCLIPackage.NewWebController(webController)

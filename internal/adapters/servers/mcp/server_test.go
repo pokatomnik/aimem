@@ -12,24 +12,35 @@ import (
 
 // fakeDeps satisfies every dependency the server asks for. The tool behaviour
 // itself is covered in the tools package, where the input types are visible; here
-// it only has to be non-nil.
-type fakeDeps struct{}
+// it only has to be non-nil. userID records what the last call received, so the
+// handler tests can prove the token reached the store.
+type fakeDeps struct {
+	userID string
+}
 
 func (f *fakeDeps) Remember(ctx context.Context, userID, s string) (string, error) {
+	f.userID = userID
+
 	return "summary of " + s, nil
 }
 
 func (f *fakeDeps) Recall(ctx context.Context, userID, q string) ([]fact.FactListView, error) {
+	f.userID = userID
+
 	return []fact.FactListView{
 		{ID: "id-1", CreatedAt: "2026-01-01", Summary: "short summary one"},
 	}, nil
 }
 
 func (f *fakeDeps) GetFact(ctx context.Context, userID, id string) (fact.FactFullView, error) {
+	f.userID = userID
+
 	return fact.FactFullView{ID: id}, nil
 }
 
 func (f *fakeDeps) RemoveFactByID(ctx context.Context, userID, id string) error {
+	f.userID = userID
+
 	return nil
 }
 
@@ -70,14 +81,26 @@ func connect(t *testing.T, build buildFunc, deps MCPDeps) (*sdk.ClientSession, c
 	return cs, ctx
 }
 
-// withAuth is the production wiring for Qdrant: every call needs a token.
+// withAuth is the production wiring for Qdrant: every call needs a token. The
+// in-memory transport carries no headers at all, so this exercises the refusing
+// side of the answer.
 func withAuth(deps MCPDeps) (*sdk.Server, error) {
-	return CreateServerWithAuth(deps, fakeAuth{})
+	srv, err := NewWithAuth(deps, fakeAuth{})
+	if err != nil {
+		return nil, err
+	}
+
+	return srv.server, nil
 }
 
 // withoutAuth is the production wiring for the embedded backend.
 func withoutAuth(deps MCPDeps) (*sdk.Server, error) {
-	return CreateServerWithoutAuth(deps)
+	srv, err := NewWithoutAuth(deps)
+	if err != nil {
+		return nil, err
+	}
+
+	return srv.server, nil
 }
 
 func deps() MCPDeps {

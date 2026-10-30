@@ -21,7 +21,8 @@ Code is layered, with dependencies pointing inward:
 - `internal/controllers/web/` — the `web` command's HTTP API: `openapi.yaml` is
   the contract, `server/` is generated from it by `ogen` (`make generate`), and
   `methods.go`, `controller.go` plus `error_handler.go` hold the hand-written
-  side. `handler.go` splits one listener three ways by path prefix.
+  side. `handler.go` splits one listener three ways by path prefix; see
+  `internal/controllers/web/README.md` for the diagram of that split.
 - `internal/controllers/web/userid.go` — the `userIDKey` type that carries the
   authenticated user through `context.Context`. The key lives next to the code
   that reads it, not in a shared package.
@@ -40,8 +41,8 @@ Code is layered, with dependencies pointing inward:
 - `internal/repositories/qdrant/` — the same storage contract backed by Qdrant over
   HTTP; keeps the `kv` schema and satisfies the use cases' interfaces.
 - `internal/adapters/` — outbound integrations (`ollama`) and inbound input
-  (`input`), plus the MCP server-side integrations (`servers/mcp` for the server
-  and its tools, `servers/http` for the streamable HTTP handler).
+  (`input`), plus the MCP server-side adapter (`servers/mcp`: the server, its
+  tools, and the streamable-HTTP transport that exposes it).
 - `internal/shared/` — cross-cutting helpers.
 
 Runtime data lives in `~/.aimem` for the embedded backend; config is required at
@@ -52,6 +53,73 @@ Runtime data lives in `~/.aimem` for the embedded backend; config is required at
 Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `use_cases` (logic) → `entities` (domain types and sentinel errors). Repositories and adapters sit at the edge; use cases reach them only through unexported interfaces they declare, satisfied structurally. `scaffold` is the single composition root — a new command means two new packages and one wiring edit. Most controllers are stateless functions; the `web` controller is a struct built by `New(...)` because it carries its dependencies and config.
 
 ## Architectural Constraints
+
+- **Layers meet through interfaces, never through implementations. This is the
+  single most important rule in this repository.** A package depends on the
+  behaviour it needs, declared as a narrow unexported interface next to the
+  consumer (`type ai interface`, `type collection interface`), and gets a
+  concrete value injected from above. It never names a concrete type from
+  another layer — not in a signature, not in a struct field, not in a
+  `new(...)` call, not in a type assertion.
+
+  **Only `cmd/aimem/scaffold.go` may import implementations and compose them.**
+  It is the composition root: it builds the concrete repositories, adapters, use
+  cases and controllers and wires them together. Nothing else may do that work,
+  and nothing else may take its place.
+
+  This matters because the tempting shortcut is invisible in review: a
+  controller importing a repository "just for the type", an adapter importing a
+  controller "just for a constructor", or two adapters importing each other to
+  reuse a helper all compile, pass their tests, and silently weld two layers
+  together. An agent is more likely to make this mistake than a human, because
+  the shortcut is always the shortest path to a working build.
+
+  Concretely, these are bugs that must be fixed at once:
+
+  - `internal/controllers/**` importing `internal/adapters/**`, or the reverse.
+  - One adapter importing another (`ollama` → `servers/mcp`), or one controller
+    importing another, instead of both depending on an interface in
+    `internal/entities` or on a locally declared one.
+  - A use case importing a repository package. Use cases declare the interfaces
+    they need (`internal/use_cases/recall` declares `ai` and its store);
+    `scaffold` satisfies them.
+  - A package returning a concrete type from another layer, or accepting one as
+    an argument, where an interface would do.
+  - A `WithAuth(bool)`-style parameter threaded to avoid the composition root
+    making a decision. The decision belongs in `scaffold`, expressed as two
+    constructors, not as a flag every caller has to get right.
+
+  Legitimate exceptions are narrow and always about data, not behaviour:
+  shared value types in `internal/entities/**` (`fact.FactFullView`,
+  `user.User`, the `apperrors` sentinels) may be imported everywhere, and
+  `internal/shared/**` helpers are importable everywhere by design. `main` in
+  `cmd/aimem` may import anything, because it is the composition root's entry.
+
+  When in doubt, ask which side owns the behaviour. If the answer is "both", the
+  interface belongs in `internal/entities` or `internal/shared`; if it is "the
+  caller", declare it next to the caller and inject.
+
+- **Two names for one field, and each layer uses its own.** The same value has a
+  Go name, an external name and a storage name, and they are deliberately
+  different conventions:
+
+  | Layer                                                                                       | Spelling     | Example                     |
+  | ------------------------------------------------------------------------------------------- | ------------ | --------------------------- |
+  | Go code                                                                                     | `CamelCase`  | `CreatedAt`, `FactFullView` |
+  | External contract — `openapi.yaml`, the generated Go server and UI client, MCP tool schemas | `camelCase`  | `createdAt`                 |
+  | Storage — the `kv` fields and the Qdrant payload                                            | `snake_case` | `created_at`                |
+
+  The external contract is what a client sees, so it follows the convention every
+  JSON API uses; the storage schema is its own thing and keeps `snake_case`, so
+  data already in `~/.aimem` and in Qdrant stays readable. A field therefore
+  changes spelling **between** `methods.go` (which reads `CreatedAt` from the
+  domain type and fills the generated one) and the repositories (which read
+  `created_at` out of a payload) — never within one layer.
+
+  The two generated sides of the contract come from one `openapi.yaml`, so they
+  can only agree if regenerated together: `make api-generate` runs both ogen and
+  `openapi-typescript`. Editing either generated tree by hand, or running only
+  one generator, is the bug this target exists to prevent.
 
 - **Storage backend is chosen by config.** Two backends implement the same
   contract: the embedded `xvec` index and Qdrant over HTTP. `scaffold` picks
@@ -79,9 +147,9 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
   `server.WithNotFound` on purpose: a typo inside the prefix, such as
   `/api/v2/search`, then still reaches the API and is answered with a JSON 404
   instead of quietly returning `index.html`. MCP is created once in `scaffold`
-  and passed into the `web` controller, so the MCP endpoint shares the `web`
-  port and authenticates every API request and every MCP tool call with a bearer
-  token.
+  and passed into the `web` controller as an `http.Handler`, so the MCP endpoint
+  shares the `web` port and authenticates every API request and every MCP tool
+  call with a bearer token.
 - **No timeouts.** Requests run without a deadline, so a slow backend blocks the CLI. Cancellation exists only through signals: `main` wraps `context.Background()` in `signal.NotifyContext` (SIGINT/SIGTERM/SIGQUIT) and prints `Cancelled` when the context is canceled.
 - **Writes are one fact per request.** The API has no bulk endpoint, and the
   former `import` command no longer exists; a client that needs bulk insertion
@@ -99,9 +167,15 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
 
   - `cmdWebPackage.NewWithAuth` / `NewWithoutAuth` set the unexported
     `authRequired` field.
-  - `aMCPHTTPPackage.TryCreateWithAuth` / `TryCreateWithoutAuth` (over
-    `mcp.CreateServerWithAuth` / `CreateServerWithoutAuth`) inject either
+  - `aMCPPackage.NewWithAuth` / `NewWithoutAuth` inject either
     `tools.NewTokenAuthenticator(users)` or `tools.NewAnonymousAuthenticator()`.
+
+  Each MCP constructor returns an `*mcp.Server` that is a plain `http.Handler`:
+  the streamable-HTTP transport is the adapter's own business, so the SDK's
+  `*mcp.Server` never reaches `scaffold`. There is one MCP package, not one for
+  the server and one for the transport — a second package would only be a package
+  that builds the first, and it would misdescribe itself as "http" while the real
+  HTTP server lives in `internal/controllers/web`.
 
   A tool calls `a.UserID(ctx, req)` and nothing else: which authenticator was
   injected _is_ the mode, so a tool holds no branch of its own and cannot disagree
@@ -193,12 +267,22 @@ When you fake a dependency, reproduce **every** channel the real call returns �
 Current coverage:
 
 - `internal/adapters/servers/mcp/server_test.go` — tool names, descriptions, and the key guidance in `INSTRUCTIONS.md`, driven through an in-memory MCP transport. Reads the embedded text only; complies with the rules above.
+- `internal/adapters/servers/mcp/handler_test.go` — the same adapter driven through a fake `http.RoundTripper` that invokes the handler in process, so the streamable-HTTP wiring is exercised without binding a socket: a token in the header reaches the tool as a user ID, a missing header is refused before any store is touched, and the anonymous wiring accepts the same call.
 - `internal/repositories/kv/getfact_test.go` — the `collection` seam satisfies both `xvec.Collection` and a fake. Covers a missing fact (`ErrFactDoesNotExist`, never a nil dereference or a leaked xvec error), a present fact, a wrong field type (`ErrDBConvertError`), and that a real delete failure is not disguised as a missing fact. Fake errors wrap `xvec.ErrNotFound`, and the fake reproduces Delete's _both_ channels: a batch error and a per-key error.
 - `internal/repositories/kv/getfacts_test.go` — **no tests**: the file is a `TODO` explaining that `GetFactsList` is uncovered and must be tested through the same faked collection rather than a real xvec one.
 - `internal/repositories/qdrant/` — the four operations against a fake `http.RoundTripper`: request shapes (named vector, `wait=true`, `topK` as the limit), that the score is compared as a similarity without the kv inversion, duplicate and missing-fact answers, collection creation, and API-key propagation. `immutability_test.go` runs every operation and fails if any request reaches an in-place mutation endpoint.
 - `internal/controllers/web/`, `internal/adapters/input/`, and `internal/controllers/web/ui/src/**/*.test.ts(x)` — the HTTP error mapping, the SPA handler, stdin parsing, and the UI (component, hook, and API-client tests).
 
 Run with `make test`. When you delete a phrase that a test asserts on, update the test in the same change.
+
+## Architecture Audit Skill
+
+`.agents/skills/architecture-audit/` holds a skill that verifies the layering
+rules above: the allowed import directions, that only `cmd/aimem/scaffold.go`
+imports implementations, and that wire names stay `snake_case`. Run it after
+adding or moving a package, after wiring a new dependency, or whenever a build
+works but one layer seems to know about another. Every violation compiles, so a
+green build is not evidence — the greps in the skill are the check.
 
 ## Commit & Pull Request Guidelines
 

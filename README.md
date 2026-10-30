@@ -521,7 +521,7 @@ Every success body is wrapped in `value`, including `POST /api/v1/fact`, whose
 reply is `{"value":{"summary":"..."}}` — not a bare `{"summary":"..."}`.
 
 `search` runs the same semantic lookup as `recall`, so `topK` and
-`similarityThreshold` apply and each item carries `id`, `createdAt`, and
+`similarityThreshold` apply and each item carries `id`, `created_at`, and
 `summary` — never the full text; use `GET /api/v1/fact/{factID}` for that.
 
 Errors come back as `{"error":"<CODE>","message":"..."}`; the status is part of
@@ -616,6 +616,89 @@ second step leaves the client typed against the old shapes.
 
 Run `aimem` without arguments (or with `--help`) to list the available
 commands.
+
+## Architecture
+
+`aimem` is layered, and the layers point inward:
+
+```
+cmd/aimem/scaffold.go          composition root — the only place that
+        │                      builds implementations and wires them
+        ▼
+controllers/  ──►  use_cases/  ──►  entities/
+(Cobra, HTTP,      (logic)          (domain types, sentinel errors)
+ SPA)
+        ▲
+        │  injected through interfaces
+repositories/ (kv, qdrant, users)      adapters/ (ollama, input, mcp)
+```
+
+### Layers meet through interfaces, never through implementations
+
+**This is the single most important rule in the codebase, and breaking it is a
+bug that must be fixed immediately.**
+
+A package depends on the behaviour it needs, declared as a narrow unexported
+interface next to the consumer, and receives a concrete value injected from
+above. It never names a concrete type from another layer — not in a signature,
+not in a struct field, not in a `new(...)` call, not in a type assertion.
+
+**Only `cmd/aimem/scaffold.go` may import implementations and compose them.** It
+is the composition root: it builds the concrete repositories, adapters, use
+cases and controllers, and wires them together. Nothing else may do that work.
+
+This rule is easy to break by accident, because the shortcut always compiles and
+always passes the tests:
+
+| Not allowed                                                                           | Why it is a bug                                                      |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `controllers` importing `adapters`, or the reverse                                    | Welds a transport layer to an integration layer.                     |
+| One adapter importing another, or one controller importing another                    | Each should depend on an interface in `entities` or declare its own. |
+| A use case importing a repository package                                             | The use case declares what it needs; `scaffold` supplies it.         |
+| Returning or accepting a concrete type from another layer where an interface would do | The caller now knows how the other layer is built.                   |
+| A `WithAuth(bool)`-style flag threaded through callers                                | The decision belongs in `scaffold`, expressed as two constructors.   |
+
+Narrow exceptions, all about data rather than behaviour: shared value types in
+`internal/entities/**` and helpers in `internal/shared/**` are importable
+everywhere, and `main` in `cmd/aimem` may import anything because it is the
+composition root's entry point.
+
+When in doubt, ask which side owns the behaviour: if "both", the interface
+belongs in `entities` or `shared`; if "the caller", declare it next to the caller
+and inject it.
+
+### Field names
+
+One value has three spellings, and each layer uses its own:
+
+| Layer                                                                        | Spelling     | Example      |
+| ---------------------------------------------------------------------------- | ------------ | ------------ |
+| Go code                                                                      | `CamelCase`  | `CreatedAt`  |
+| API contract — `openapi.yaml`, the generated server and UI client, MCP tools | `camelCase`  | `createdAt`  |
+| Storage — the `kv` fields and the Qdrant payload                             | `snake_case` | `created_at` |
+
+The JSON a client sees uses `camelCase`, like any other JSON API; the storage
+schema keeps `snake_case`, so data already written to `~/.aimem` and to Qdrant
+stays readable. A field therefore changes spelling _between_ layers — in
+`methods.go` when the domain value is copied into the generated response, and in
+the repositories when a payload is read — but never within one layer.
+
+Both generated sides come from the same `openapi.yaml`, so they must be
+regenerated together:
+
+```sh
+make api-generate   # ogen → server/  and  openapi-typescript → schema.d.ts
+```
+
+Editing a generated file by hand, or running only one of the two generators,
+leaves the client typed against shapes the server no longer sends.
+
+### One listener, three kinds of route
+
+`aimem web` serves the API, the MCP endpoint and the UI from one port. Splitting
+the path is `internal/controllers/web/handler.go`; see
+[`internal/controllers/web/README.md`](internal/controllers/web/README.md) for the
+diagram and the rules.
 
 ## License
 
