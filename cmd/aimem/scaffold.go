@@ -57,7 +57,7 @@ func scaffold(ctx context.Context) (*cobra.Command, error) {
 	fac := ucGetFactPackage.New(embeddedDB)
 	rem := ucRememberPackage.New(aOllama, embeddedDB)
 	del := ucRemoveFactPackage.New(embeddedDB)
-	if cfg.IsQdrantConfigured() {
+	if cfg.RequireAuth() {
 		rec = ucRecallPackage.New(aOllama, qdrantDB, cfg)
 		fac = ucGetFactPackage.New(qdrantDB)
 		rem = ucRememberPackage.New(aOllama, qdrantDB)

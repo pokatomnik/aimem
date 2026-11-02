@@ -15,7 +15,7 @@ type (
 	// backend reports which storage the app is running against. Authentication
 	// follows it: Qdrant partitions by user, the embedded index does not.
 	backend interface {
-		IsQdrantConfigured() bool
+		RequireAuth() bool
 	}
 
 	Users struct {
@@ -101,7 +101,7 @@ func (u *Users) GetUserByToken(ctx context.Context, token string) (user.User, er
 // The two booleans are deliberately distinct: `true` means "gate the API behind
 // a token", `false` means "serve everything openly".
 func (u *Users) RequireAuthentication(ctx context.Context) (bool, error) {
-	if !u.backend.IsQdrantConfigured() {
+	if !u.backend.RequireAuth() {
 		return false, nil
 	}
 

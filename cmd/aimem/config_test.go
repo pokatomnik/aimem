@@ -50,16 +50,16 @@ func TestGetQdrantHostReturnsConfiguredHost(t *testing.T) {
 	}
 }
 
-func TestIsQdrantConfigured(t *testing.T) {
+func TestRequireAuth(t *testing.T) {
 	t.Parallel()
 
 	emptyConfig := Config{}
-	if emptyConfig.IsQdrantConfigured() {
-		t.Fatal("IsQdrantConfigured() = true for an empty host")
+	if emptyConfig.RequireAuth() {
+		t.Fatal("RequireAuth() = true for an empty host")
 	}
 
 	configuredConfig := Config{QdrantHost: "http://qdrant.example:6333"}
-	if !configuredConfig.IsQdrantConfigured() {
-		t.Fatal("IsQdrantConfigured() = false for a configured host")
+	if !configuredConfig.RequireAuth() {
+		t.Fatal("RequireAuth() = false for a configured host")
 	}
 }

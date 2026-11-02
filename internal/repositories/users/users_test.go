@@ -14,7 +14,7 @@ type fakeBackend struct {
 	qdrant bool
 }
 
-func (f fakeBackend) IsQdrantConfigured() bool { return f.qdrant }
+func (f fakeBackend) RequireAuth() bool { return f.qdrant }
 
 // configFrom feeds readUsers from memory. The rules forbid touching the
 // filesystem from a test, so this replaces os.ReadFile rather than naming a path.

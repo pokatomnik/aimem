@@ -51,7 +51,7 @@ func (c *Config) GetSimilarityThreshold() float32 {
 	return max(0, min(1, c.SimilarityThreshold))
 }
 
-func (c *Config) IsQdrantConfigured() bool {
+func (c *Config) RequireAuth() bool {
 	return c.QdrantHost != ""
 }
 
