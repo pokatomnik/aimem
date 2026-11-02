@@ -105,6 +105,7 @@ func (c *Controller) HandleBearerAuth(
 func (c *Controller) Run(
 	ctx context.Context,
 	options *httpServerExtPkg.ListenAndServeOptions,
+	onStartListening func(where string),
 ) error {
 	host := cmp.Or(c.cfg.GetWebHTTPHost(), defaultWebHost)
 
@@ -129,6 +130,8 @@ func (c *Controller) Run(
 		Addr:    host,
 		Handler: newHandler(api, spa, c.mcpHandler),
 		BaseContext: func(l net.Listener) context.Context {
+			onStartListening(l.Addr().String())
+
 			return ctx
 		},
 	})

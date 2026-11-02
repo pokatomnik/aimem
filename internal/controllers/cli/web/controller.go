@@ -13,6 +13,7 @@ type serverRunner interface {
 	Run(
 		ctx context.Context,
 		options *server.ListenAndServeOptions,
+		onStart func(where string),
 	) error
 }
 
@@ -23,10 +24,12 @@ func NewWebController(serverRunner serverRunner, cmds ...*cobra.Command) *cobra.
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			colors.Primary().Fprintln(os.Stderr, "Server started")
 			return serverRunner.Run(
 				cmd.Context(),
 				&server.ListenAndServeOptions{},
+				func(where string) {
+					colors.Primary().Fprintf(os.Stderr, "Server started at %s\n", where)
+				},
 			)
 		},
 	}

@@ -23,6 +23,8 @@ type (
 	}
 
 	ListenAndServeOptions struct {
+		// ShutdownTimeout is the maximum time to wait for graceful shutdown
+		// after the context is canceled. Zero uses the default timeout.
 		ShutdownTimeout time.Duration
 	}
 )
