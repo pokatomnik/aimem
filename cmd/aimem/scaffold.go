@@ -9,49 +9,24 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/pokatomnik/gomem/cmd/aimem/config"
-	aInputPackage "github.com/pokatomnik/gomem/internal/adapters/input"
 	aOllamaPackage "github.com/pokatomnik/gomem/internal/adapters/ollama"
 	aMCPPackage "github.com/pokatomnik/gomem/internal/adapters/servers/mcp"
-	cmdInitPackage "github.com/pokatomnik/gomem/internal/controllers/cli/init"
 	cmdRootPackage "github.com/pokatomnik/gomem/internal/controllers/cli/root"
 	cmdWebCLIPackage "github.com/pokatomnik/gomem/internal/controllers/cli/web"
 	cmdWebPackage "github.com/pokatomnik/gomem/internal/controllers/web"
 	rKVPackage "github.com/pokatomnik/gomem/internal/repositories/kv"
 	rQdrantPackage "github.com/pokatomnik/gomem/internal/repositories/qdrant"
 	rUsersPackage "github.com/pokatomnik/gomem/internal/repositories/users"
-	"github.com/pokatomnik/gomem/internal/shared/colors"
 	ucGetFactPackage "github.com/pokatomnik/gomem/internal/use_cases/getfact"
-	ucInitPackage "github.com/pokatomnik/gomem/internal/use_cases/init"
 	ucRecallPackage "github.com/pokatomnik/gomem/internal/use_cases/recall"
 	ucRememberPackage "github.com/pokatomnik/gomem/internal/use_cases/remember"
 	ucRemoveFactPackage "github.com/pokatomnik/gomem/internal/use_cases/removefact"
 )
 
 func scaffold(ctx context.Context) (*cobra.Command, error) {
-	configPath, err := config.ConfigPath()
+	cfg, err := GetConfig()
 	if err != nil {
-		return nil, err
-	}
-
-	aInput := aInputPackage.New(os.Stdin)
-	init := ucInitPackage.New(configPath, config.DefaultConfig().String(), aInput)
-
-	cfg, err := config.GetConfig()
-	if err != nil {
-		initialized, dumpErr := init.Dump()
-		if dumpErr != nil {
-			log.Fatalf("Failed to initialize configuration: %s\n", dumpErr.Error())
-		}
-
-		if initialized {
-			log.Fatal(colors.Primary().Sprintf("Initial configuration dumped. Please set It up: %s\n", configPath))
-		}
-
-		// The file exists but could not be read or parsed, and the user declined to
-		// overwrite it. Every constructor below dereferences cfg, so carrying on
-		// would panic on a nil pointer; report the original failure instead.
-		log.Fatalf("Failed to read configuration: %s\n", err.Error())
+		log.Fatalf("Configuration init failed: %v", err)
 	}
 
 	client := http.DefaultClient
@@ -121,9 +96,7 @@ func scaffold(ctx context.Context) (*cobra.Command, error) {
 
 	web := cmdWebCLIPackage.NewWebController(webController)
 
-	cmdInitPackage := cmdInitPackage.GetInitCmd(init)
-
-	root := cmdRootPackage.RootCmd(web, cmdInitPackage)
+	root := cmdRootPackage.RootCmd(web)
 
 	return root, nil
 }

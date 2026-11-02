@@ -4,25 +4,24 @@
 facts, generates embeddings through [Ollama](https://ollama.com), and retrieves
 the most relevant facts for a question by meaning, using cosine similarity.
 
-Two storage backends are available and the config chooses between them:
+Two storage backends are available; `AIMEM_QDRANT_HOST` chooses between them:
 
 - **Embedded** (default) — [xvec](https://github.com/gorse-io/xvec), an HNSW
   index kept in `~/.aimem`. No extra service, no API key.
 - **Qdrant** — a Qdrant instance over HTTP, for running the memory outside one
-  machine. Configure `[qdrant] host` to switch; see
-  [Start the vector database](#3-start-the-vector-database-qdrant).
+  machine. Set `AIMEM_QDRANT_HOST` to switch; see
+  [Start the vector database](#4-start-the-vector-database-qdrant).
 
 Ollama does the embedding and summarization in both cases. With the embedded
 backend everything runs on your machine.
 
 ## Features
 
-- `init` — write a default configuration file.
 - `web` — serve the HTTP API, the browser UI, and the MCP endpoint from one port.
 - Through the UI, the API or the MCP tools: save a fact (summarized and
   embedded), search by meaning, read one fact in full, delete a fact.
-- Per-user storage with bearer-token authentication: every request is resolved to
-  a user, and with Qdrant each user gets a separate collection.
+- With Qdrant, bearer-token authentication resolves each request to a user, and
+  each user gets a separate collection. The embedded backend is anonymous.
 - Two interchangeable storage backends: an embedded vector index, or Qdrant.
 
 ## Requirements
@@ -67,80 +66,48 @@ make install INSTALL_DIR=/usr/local/bin
 
 Make sure the install directory is in your `PATH`.
 
-### 2. Create the configuration
+### 2. Set runtime configuration
 
-The configuration file is required and must be located at
-`~/.config/aimem/config.toml`. There is no template file in the repository: the
-binary generates the config from the built-in defaults, comments included.
+`aimem` reads runtime settings from its process environment; it does not load
+`.env` files itself. Set the required variables where the application runs:
 
 ```sh
-aimem init                    # writes the file
+export AIMEM_EMBEDDING_MODEL="embeddinggemma-2:740m"
+export AIMEM_SUMMARIZATION_MODEL="gemma4:e2b"
+export AIMEM_DIMENSIONS="768"
+
+# Optional: select Qdrant instead of the embedded backend
+# export AIMEM_QDRANT_HOST="http://127.0.0.1:6333"
 ```
 
-If the file is missing, `aimem` writes it, prints where it landed, and exits —
-no other command works until the file exists. `aimem init` does the same thing on
-demand; if a file is already there it asks before overwriting.
+Settings marked `Required` have no default; all others are optional:
 
-Then adjust it:
+| Variable                     | Required / default       | Description                                                                                                                                  |
+| ---------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AIMEM_OLLAMA_HOST`          | `http://127.0.0.1:11434` | Base URL of the Ollama server.                                                                                                               |
+| `AIMEM_EMBEDDING_MODEL`      | Required                 | Model used through Ollama's `/api/embed` endpoint.                                                                                           |
+| `AIMEM_SUMMARIZATION_MODEL`  | Required                 | Model used through `/api/generate` to produce short summaries.                                                                               |
+| `AIMEM_TOP_K`                | `5`                      | Upper bound on the number of results returned by `recall`.                                                                                   |
+| `AIMEM_SIMILARITY_THRESHOLD` | `0.7`                    | Minimum cosine similarity for a fact to be returned; `0` matches everything, `1` requires an exact match. Values outside `0..1` are clamped. |
+| `AIMEM_DIMENSIONS`           | Required                 | Embedding vector size; it is fixed in the database schema when the collection is created.                                                    |
+| `AIMEM_WEB_HTTP_HOST`        | `127.0.0.1:8888`         | Address for the `web` server: HTTP API, MCP endpoint, and UI.                                                                                |
+| `AIMEM_QDRANT_HOST`          | Empty (embedded backend) | Qdrant base URL. Any non-empty value switches storage from the embedded index to Qdrant.                                                     |
+| `AIMEM_QDRANT_API_KEY`       | Empty                    | Sent as the `api-key` header when set; omitted when empty.                                                                                   |
 
-```toml
-# Ollama API endpoint
-ollamaHost = "http://localhost:11434"
+A typo in a variable name means that value is not applied; required variables
+must be set or startup fails. `recall` applies `AIMEM_TOP_K` first and then filters
+by `AIMEM_SIMILARITY_THRESHOLD`, so a query can return fewer results than the
+limit, or none at all, even when related facts exist.
 
-# Model used to create embeddings (required for remember/recall/import)
-embeddingModel = "embeddinggemma-2:740m"
-
-# Model used to summarize saved facts (required for remember/import)
-summarizationModel = "gemma4:e2b"
-
-# Number of facts returned by recall
-# TopK is an upper bound; the similarity filter may return fewer, including none.
-topK = 5
-
-# Minimum cosine similarity for a fact to be returned by recall
-# min: 0 (everything matches), max: 1 (exact match only)
-similarityThreshold = 0.5
-
-# Embedding dimensions; must match the embedding model output
-dimensions = 768
-
-# Host the HTTP API, the UI, and the MCP endpoint listen on
-webHttpHost = "127.0.0.1:8888"
-
-# Optional. Setting `host` switches storage from the embedded index to Qdrant.
-[qdrant]
-host = ""          # e.g. "http://127.0.0.1:6333"
-apiKey = ""        # leave empty when Qdrant has no authorization
-```
-
-| Key                   | Description                                                                                                                                  |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ollamaHost`          | Base URL of the Ollama server.                                                                                                               |
-| `embeddingModel`      | Model used through Ollama's `/api/embed` endpoint.                                                                                           |
-| `summarizationModel`  | Model used through `/api/generate` to produce short summaries.                                                                               |
-| `topK`                | Upper bound on the number of results returned by `recall`.                                                                                   |
-| `similarityThreshold` | Minimum cosine similarity for a fact to be returned; `0` matches everything, `1` requires an exact match. Values outside `0..1` are clamped. |
-| `dimensions`          | Vector size; it is fixed in the database schema when it is created.                                                                          |
-| `webHttpHost`         | Address for the `web` server: HTTP API, MCP endpoint, and UI. Defaults to `127.0.0.1:8888`.                                                  |
-| `[qdrant].host`       | Qdrant base URL. **Empty means the embedded backend**; any non-empty value switches to Qdrant.                                               |
-| `[qdrant].apiKey`     | Sent as the `api-key` header. Leave empty when the server has no key — the header is then omitted entirely.                                  |
-
-Unknown keys are ignored silently, so a typo leaves the field at its zero value
-(`topK = 0` returns nothing, `similarityThreshold = 0` matches everything) with
-no error. Compare your file against the table when something behaves oddly.
-
-> `recall` applies `topK` first and then filters by `similarityThreshold`, so a
-> query can return fewer than `topK` results, or none at all, even when related
-> facts exist.
-
-> `dimensions` must match the number of values returned by the embedding model.
-> If you change it after the database has been created, recreate it — delete
-> `~/.aimem` for the embedded backend, or drop the Qdrant collections.
+> `AIMEM_DIMENSIONS` must match the number of values returned by the embedding
+> model. If you change it after the database has been created, recreate it —
+> delete `~/.aimem` for the embedded backend, or drop the Qdrant collections.
 
 ### 3. Add users and tokens (Qdrant only)
 
-Whether the server asks for a token is decided by the **storage backend**, not by
-this file:
+Whether the server requires a token is decided by the **storage backend**. The
+`[[users]]` file supplies credentials for Qdrant; it does not enable auth for the
+embedded backend:
 
 | Backend         | `[[users]]` section | Authentication                 |
 | --------------- | ------------------- | ------------------------------ |
@@ -165,8 +132,9 @@ That failure is deliberate: starting anyway would answer every request with
 
 #### The section
 
-`aimem init` does not write `[[users]]` — add it to
-`~/.config/aimem/config.toml` by hand, after the main keys:
+For Qdrant, create `~/.config/aimem/config.toml` with at least one `[[users]]`
+entry. This file is separate from the runtime environment variables above and
+contains only the user IDs and tokens used for authentication:
 
 ```toml
 [[users]]
@@ -290,13 +258,13 @@ Storing aimem's memory in Qdrant requires a collection mirroring the current `kv
 module's schema, so the repository keeps its contract (`AddFact`, `GetFactByID`,
 `GetFactsList`, `RemoveFactByID`):
 
-| Item         | Value                                                                        |
-| ------------ | ---------------------------------------------------------------------------- |
-| Collection   | `memory` for an empty user, `memory-<userID>` otherwise                      |
-| Distance     | `Cosine`                                                                     |
-| Vector       | `embedding`, size `dimensions` from `config.toml` (default `768`), `float32` |
-| Point ID     | derived from the fact's SHA-256 — Qdrant takes only a UUID or `u64`          |
-| Payload keys | `summary`, `fact`, `created_at` (all strings)                                |
+| Item         | Value                                                               |
+| ------------ | ------------------------------------------------------------------- |
+| Collection   | `memory` for an empty user, `memory-<userID>` otherwise             |
+| Distance     | `Cosine`                                                            |
+| Vector       | `embedding`, size `AIMEM_DIMENSIONS` (required), `float32`          |
+| Point ID     | derived from the fact's SHA-256 — Qdrant takes only a UUID or `u64` |
+| Payload keys | `summary`, `fact`, `created_at` (all strings)                       |
 
 Storage is partitioned per user: each userID gets its own collection with this
 schema, created on first use. An empty userID keeps using the bare `memory`
@@ -391,21 +359,16 @@ process and would not share the lock, so it would only hide the window. Writes a
 far rarer than reads, so the window is accepted rather than patched.
 
 > Both backends are wired. `scaffold` builds the embedded repository and the
-> Qdrant one, then selects Qdrant when `[qdrant] host` is non-empty. The compose
-> file only stands up the server; pointing the config at it is what switches the
-> storage.
+> Qdrant one, then selects Qdrant when `AIMEM_QDRANT_HOST` is non-empty. The
+> compose file only stands up the server; setting this environment variable is
+> what switches the storage.
 
 ## Usage
 
-Two commands remain: `init`, which writes the configuration, and `web`, which
-serves the API, the UI and the MCP endpoint from one port.
+The only CLI command is `web`, which serves the API, the UI and the MCP endpoint
+from one port:
 
 ```sh
-# Write a default configuration file (prompts before overwriting).
-# Edit it afterwards to add users and tokens — see step 3 above.
-aimem init
-
-# Serve the HTTP API, the browser UI and the MCP endpoint on webHttpHost.
 aimem web
 ```
 
@@ -413,12 +376,13 @@ Remembering, searching, reading and removing facts are done through the UI or
 the API, not through the CLI. An MCP client gets the same four operations as
 tools.
 
-All API calls must carry `Authorization: Bearer <token>`; a request without a
-valid token is answered with `401` and the appError body `{"error":
-"UNAUTHORIZED"}`.
+With Qdrant, every API call must carry `Authorization: Bearer <token>`; a request
+without a valid token is answered with `401` and the appError body `{"error":
+"UNAUTHORIZED"}`. The embedded backend is anonymous and does not require a token.
 
 ```sh
-# Save a fact. The summary comes back in the response.
+# Save a fact. For Qdrant, include the bearer token; embedded mode is anonymous.
+# The summary comes back in the response.
 curl -X POST http://127.0.0.1:8888/api/v1/fact \
   -H 'Authorization: Bearer a-long-random-string' \
   -H 'Content-Type: application/json' \
@@ -454,21 +418,23 @@ usage instructions are embedded from
 `internal/adapters/servers/mcp/INSTRUCTIONS.md` and sent to the client on
 initialization.
 
-The MCP tools authenticate the same way as the REST API: every `tools/call`
-must carry an `Authorization: Bearer <token>` header, and the token decides which
-user's facts the call reads or writes. The token comes from the `[[users]]`
-entries of `config.toml` (see [Users and tokens](#users-and-tokens)); a call with
-a missing or unknown token is answered with an error and touches no data.
+The MCP tools authenticate the same way as the REST API. With Qdrant, every
+`tools/call` must carry an `Authorization: Bearer <token>` header, and the token
+decides which user's facts the call reads or writes. Tokens come from the
+`[[users]]` entries of `~/.config/aimem/config.toml` (see
+[Users and tokens](#3-add-users-and-tokens-qdrant-only)); a missing or unknown
+token is rejected without touching data. With the embedded backend, calls are
+anonymous and do not require a token.
 
-`webHttpHost` defaults to `127.0.0.1:8888`, and the MCP library rejects a
-non-loopback `Host` header on a loopback listener; binding `webHttpHost` to a
-non-loopback address publishes the MCP server to the network, so make sure the
-tokens are meaningful before you do.
+`AIMEM_WEB_HTTP_HOST` defaults to `127.0.0.1:8888`, and the MCP library rejects a
+non-loopback `Host` header on a loopback listener; binding `AIMEM_WEB_HTTP_HOST`
+to a non-loopback address publishes the MCP server to the network, so make sure
+the tokens are meaningful before you do.
 
 ### Web API and UI
 
 `aimem web` serves the HTTP API, the MCP endpoint and the browser UI from one
-port, listening on `webHttpHost` (`127.0.0.1:8888` by default):
+port, listening on `AIMEM_WEB_HTTP_HOST` (`127.0.0.1:8888` by default):
 
 ```sh
 aimem web
@@ -527,8 +493,8 @@ The API contract lives in `internal/controllers/web/openapi.yaml`.
 Every success body is wrapped in `value`, including `POST /api/v1/fact`, whose
 reply is `{"value":{"summary":"..."}}` — not a bare `{"summary":"..."}`.
 
-`search` runs the same semantic lookup as `recall`, so `topK` and
-`similarityThreshold` apply and each item carries `id`, `created_at`, and
+`search` runs the same semantic lookup as `recall`, so `AIMEM_TOP_K` and
+`AIMEM_SIMILARITY_THRESHOLD` apply and each item carries `id`, `created_at`, and
 `summary` — never the full text; use `GET /api/v1/fact/{factID}` for that.
 
 Errors come back as `{"error":"<CODE>","message":"..."}`; the status is part of
@@ -562,7 +528,8 @@ credentials" — it simply gets `401`.
 ### Bulk insertion
 
 There is no import command and no bulk endpoint. Insert facts one request at a
-time:
+time. For Qdrant, set `TOKEN` to one of the configured user tokens; embedded mode
+is anonymous:
 
 ```sh
 jq -r '.data' facts.jsonl | while IFS= read -r line; do

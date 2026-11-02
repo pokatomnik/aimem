@@ -41,17 +41,17 @@ Never finish a turn in which the user corrected you without step 8.
 
 Text that reaches a model, and must stay in sync with code:
 
-| File                                               | Embedded in                                              | Sent to                                 | Keep in sync with                                                                       |
-| -------------------------------------------------- | -------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------- |
-| `internal/adapters/servers/mcp/INSTRUCTIONS.md`    | `internal/adapters/servers/mcp/server.go` (`//go:embed`) | the MCP client, as server instructions  | tool names, inputs, outputs, and behavior in `internal/adapters/servers/mcp/tools/*.go` |
-| `internal/adapters/ollama/SUMMARIZATION_SYSTEM.md` | `internal/adapters/ollama/summarization.go`              | the summarization model                 | the prompt built in `Summarize(...)`, `NumPredict`, what `remember`/`import` store      |
-| Tool descriptions and `jsonschema` tags            | each `tools/*.go` file                                   | the model, via `tools/list`             | the handler's actual inputs and outputs                                                 |
-| `cmd/aimem/config/config.go` `comment` tags        | `config.DefaultConfig().String()`                        | the user, on first run and `aimem init` | `Config` field names and defaults                                                       |
+| File                                               | Embedded in                                              | Sent to                                | Keep in sync with                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------- |
+| `internal/adapters/servers/mcp/INSTRUCTIONS.md`    | `internal/adapters/servers/mcp/server.go` (`//go:embed`) | the MCP client, as server instructions | tool names, inputs, outputs, and behavior in `internal/adapters/servers/mcp/tools/*.go` |
+| `internal/adapters/ollama/SUMMARIZATION_SYSTEM.md` | `internal/adapters/ollama/summarization.go`              | the summarization model                | the prompt built in `Summarize(...)`, `NumPredict`, and what `remember` stores          |
+| Tool descriptions and `jsonschema` tags            | each `tools/*.go` file                                   | the model, via `tools/list`            | the handler's actual inputs and outputs                                                 |
 
-There is **no** `config.toml.example` or `example.go` in this repository. The
-template is generated at run time from `DefaultConfig()` via `toml.Marshal`, and
-the `comment` tags on `Config` become the file's comments — so a wrong comment
-ships to every user, and a missing one leaves a bare key. Keep them accurate.
+App configuration does not reach a model. `cmd/aimem/config.go` reads runtime
+settings from `AIMEM_*` process environment variables; its env tags are the source
+of truth for names, required values, and defaults. There is no generated config
+template or `.env` loader. Qdrant authentication is separate: `internal/repositories/users`
+reads `[[users]]` from `~/.config/aimem/config.toml`.
 
 `AGENTS.md` and `README.md` do not reach a model, but must match the code and the CLI.
 
@@ -72,8 +72,8 @@ Check these before trusting any sentence in the docs. Each one has already been 
 
 ### Config
 
-- **Read the generated template, not a file.** `config.go` is the only source; there is no `.example` to compare against. Reproduce the template with a throwaway test that prints `config.DefaultConfig().String()`, and check every key against `GetX()` and the code that consumes it. A `toml` tag that does not match the field name the user writes is silently ignored by `toml.Unmarshal` — the field keeps its zero value and nothing fails.
-- **Check defaults.** A missing key means zero: `SimilarityThreshold = 0` accepts everything, `TopK = 0` returns nothing. Decide whether the example should show a working value.
+- **Read the env tags, not a generated template.** `cmd/aimem/config.go` uses `caarlos0/env`; compare each `AIMEM_*` name and `envDefault`/`required` tag with the getters and its consumers. The app reads the process environment and does not load `.env` files. The separate TOML file under `~/.config/aimem/` is read only for Qdrant `[[users]]` entries.
+- **Check defaults and required values.** `AIMEM_EMBEDDING_MODEL`, `AIMEM_SUMMARIZATION_MODEL`, and `AIMEM_DIMENSIONS` are required. `AIMEM_TOP_K` defaults to 5, `AIMEM_SIMILARITY_THRESHOLD` to 0.7 (clamped to `0..1`), and an empty `AIMEM_QDRANT_HOST` selects the embedded backend.
 
 ### Recall and the similarity threshold
 
@@ -90,14 +90,14 @@ Check these before trusting any sentence in the docs. Each one has already been 
 
 ### CLI
 
-- **Read `Use:` in `internal/controllers/cli/*/controller.go`** and compare with the commands listed in `README.md`. The CLI has commands the README does not mention (`init`, `import`, `web`) and README sections that may describe removed behavior. Note that `import` is declared as `Use: "import"` in the `consume` package. There is no `mcp` command: the MCP endpoint is mounted on the `web` server under `/mcp`.
+- **Read `Use:` in `internal/controllers/cli/*/controller.go`** and compare with the commands listed in `README.md`. The only current command is `web`; there are no `init` or `import` commands. There is no `mcp` command: the MCP endpoint is mounted on the `web` server under `/mcp`.
 - **Check flags and defaults** against `cmd/aimem/scaffold.go` and the controllers.
 
 ### Storage
 
 - **Two backends, one contract.** `kv` (embedded, `~/.aimem`) and `qdrant` (over
   HTTP) both satisfy the use cases' interfaces; `scaffold` selects Qdrant when
-  `[qdrant] host` is non-empty. Text describing "the" database must say which one
+  `AIMEM_QDRANT_HOST` is non-empty. Text describing "the" database must say which one
   it means, or cover both.
 - **The score direction differs.** `kv` converts xvec's cosine _distance_ with
   `1 - Score`; Qdrant already reports a similarity and must not be inverted.

@@ -9,12 +9,12 @@ path does **not** match the directory name.
 
 Code is layered, with dependencies pointing inward:
 
-- `cmd/aimem/` — entrypoint, `cobra` wiring (`scaffold.go`) and config loading
-  (`config/`: `config.go`, `init.go`, `qdrant_config.go`). There is no
-  `config.toml.example`: the template is produced by `DefaultConfig().String()`,
-  which marshals the struct and its `comment` tags.
+- `cmd/aimem/` — entrypoint, `cobra` wiring (`scaffold.go`) and runtime config
+  loading (`config.go`) from `AIMEM_*` process environment variables. Required
+  settings and defaults live in the `Config` env tags; there is no `init`
+  command or generated config template.
 - `internal/controllers/cli/<command>/` — thin CLI layer; parses args and prints
-  via `internal/shared/colors`. Commands: `init`, `web`. Remembering, searching,
+  via `internal/shared/colors`. The only command is `web`. Remembering, searching,
   reading and removing facts live in the HTTP API and the SPA; there is no CLI
   command for them. There is no separate MCP command either: the MCP endpoint is
   mounted on the `web` server.
@@ -34,8 +34,10 @@ Code is layered, with dependencies pointing inward:
 - `internal/entities/` — domain types (`fact`, `ollama`, `user`) and sentinel
   errors (`apperrors`).
 - `internal/repositories/users/` — reads the `[[users]]` entries of
-  `config.toml` and resolves a bearer token to a user. Read from disk on every
-  call, so an edit takes effect without a restart.
+  `~/.config/aimem/config.toml` and resolves a bearer token to a user. This file
+  is separate from the `AIMEM_*` runtime settings and is used only for Qdrant
+  authentication. It is read from disk on every request, so an edit takes effect
+  without a restart.
 - `internal/repositories/kv/` — the embedded backend. The xvec collection sits
   behind the unexported `collection` interface so tests can fake it.
 - `internal/repositories/qdrant/` — the same storage contract backed by Qdrant over
@@ -45,8 +47,9 @@ Code is layered, with dependencies pointing inward:
   tools, and the streamable-HTTP transport that exposes it).
 - `internal/shared/` — cross-cutting helpers.
 
-Runtime data lives in `~/.aimem` for the embedded backend; config is required at
-`~/.config/aimem/config.toml`.
+Runtime data lives in `~/.aimem` for the embedded backend. Runtime settings come
+from `AIMEM_*` process environment variables. The TOML file at
+`~/.config/aimem/config.toml` is only needed for Qdrant user IDs and tokens.
 
 ## Architecture Overview
 
@@ -123,11 +126,12 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
 
 - **Storage backend is chosen by config.** Two backends implement the same
   contract: the embedded `xvec` index and Qdrant over HTTP. `scaffold` picks
-  Qdrant when `[qdrant] host` is non-empty and the embedded one otherwise. There
-  are no namespaces or profiles. Config is file-only, with no flags or env
-  overrides. Unknown config keys are ignored silently — a typo leaves the field at
-  its zero value, so keep the `comment` tags on `Config` accurate; they _are_ the
-  template users copy.
+  Qdrant when `AIMEM_QDRANT_HOST` is non-empty and the embedded one otherwise.
+  Runtime settings are read from process environment variables by
+  `cmd/aimem/config.go`; there are no CLI flags or `.env` loader. The separate
+  `~/.config/aimem/config.toml` file supplies `[[users]]` only for Qdrant
+  authentication. `AIMEM_EMBEDDING_MODEL`, `AIMEM_SUMMARIZATION_MODEL`, and
+  `AIMEM_DIMENSIONS` are required; defaults are defined by the env tags.
 - **A fact's ID is derived from its text**, so the ID and the content cannot
   disagree. The digest is shaped per backend: `kv` stores the full 64-character
   SHA-256 hex, while Qdrant takes the first 32 hex characters as a UUID (Qdrant
