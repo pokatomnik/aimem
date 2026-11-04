@@ -94,7 +94,8 @@ module runs — `injectAuthFlag` inserts it there and only rewrites
 
 - **`mcpHandler` is a plain `http.Handler` field, and must stay one.** Importing
   the MCP adapter to name its concrete type would tie a controller to an adapter,
-  which `AGENTS.md` forbids. `scaffold` builds it and passes it in.
+  which `decisions/coupling-restrictions.md` forbids. `scaffold` builds it and
+  passes it in.
 - **Do not add a second listener.** The MCP endpoint shares this port on purpose,
   so one token and one origin cover both.
 - **The SPA has no fallback route.** The app uses `HashRouter`, so the server only

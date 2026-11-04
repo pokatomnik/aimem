@@ -1,47 +1,62 @@
 ---
 name: domain-error-handler
-description: Audit that every domain error in internal/entities/apperrors/errors.go is mapped in the NewError switch of internal/controllers/web/error_handler.go, that each mapping is correct (errors.Is, status code, errorCode enum value), and write the missing or wrong handlers. Records every user correction in LESSONS.md so the same mistake is not repeated. Use when domain errors are added or renamed, when the web error handler is edited, or when an HTTP response carries a wrong status or error code.
+description: Audit that every domain error in internal/entities/apperrors/errors.go is mapped by mapDomainError in internal/controllers/web/error_handler.go, that each mapping is correct (errors.Is, status code, errorCode enum value), and that every path turning an error into a response goes through that one mapping. Use when domain errors are added or renamed, when the web error handler is edited, or when an HTTP response carries a wrong status or error code.
 ---
 
 # Domain Error Handler
 
-Keep the mapping from domain errors to HTTP responses complete and correct, and
-learn from every correction the user makes.
+Keep the mapping from domain errors to HTTP responses complete and correct.
 
 The contract spans these files:
 
 | File                                                 | Role                                                          |
 | ---------------------------------------------------- | ------------------------------------------------------------- |
 | `internal/entities/apperrors/errors.go`              | the list of domain errors (source of truth)                   |
-| `internal/controllers/web/error_handler.go`          | `NewError`, which maps them to status codes                   |
+| `internal/controllers/web/error_handler.go`          | `mapDomainError`, the one mapping to a status and a body code |
+| `internal/controllers/web/error_response.go`         | `RequestErrorHandler` and `NotFoundHandler`, which call it    |
 | `internal/controllers/web/openapi.yaml`              | the `errorCode` enum, i.e. the codes allowed in a body        |
 | `internal/controllers/web/server/oas_schemas_gen.go` | generated `ErrorCode*` constants — the only names you may use |
 
-## Read LESSONS.md first
+## One mapping, reached from everywhere
 
-`LESSONS.md` in this skill's directory holds corrections the user has already
-made. Read it before proposing any change.
+`mapDomainError` is the only place an error becomes a status and a body code,
+and both entry points go through it:
 
-- If a lesson applies, follow it and say which one you followed.
-- If the code contradicts a lesson, stop and report the conflict. Do not pick a
-  side on your own — a lesson records a decision the user already made once.
-- Never treat this file as optional reading because "the case looks simple". It
-  exists precisely for the cases that look simple.
+- `RequestErrorHandler` checks `isRequestError` first — a malformed body, a
+  failed parameter decode or a bad Content-Type is a client fault, so it becomes
+  400 — and hands everything else to `mapDomainError`.
+- Errors returned by our handlers reach `RequestErrorHandler` too, because the
+  generated server routes them to the configured error handler instead of a
+  per-operation `NewError` method.
+
+So a domain error keeps its status on both paths: a missing fact stays 404, a
+duplicate stays 409. Never add a second mapping, and never hardcode a status for
+the remaining branch — two entry points where only one knows the mapping is how
+`ErrFactDoesNotExist` once became 500 while the tests stayed green, because those
+tests exercised a path the server no longer called.
+
+```sh
+CGO_ENABLED=0 go test ./internal/controllers/web/ \
+  -run 'TestRequestErrorHandlerDomainError|TestRequestErrorHandlerWrappedDomainError' -v
+```
+
+Expect 404/409/422/502 per domain error, including wrapped ones, and
+`FACT_DOES_NOT_EXIST` rather than `INTERNAL_ERROR` in the body.
 
 ## Order of work
 
-1. Read `LESSONS.md`.
-2. Extract the domain errors from `errors.go`.
-3. Extract the cases from `NewError`.
-4. Diff both directions — see below.
-5. **Write the missing handlers immediately.** A domain error with no `case` is
+1. Extract the domain errors from `errors.go`.
+2. Extract the cases from `mapDomainError`.
+3. Diff both directions — see below.
+4. **Write the missing handlers immediately.** A domain error with no `case` is
    unambiguous debt; the user asked for it to be closed in the same run, not
    queued for approval. Add them, then report what you added.
-6. **Report, and wait, for anything judgmental** — a mapping you want to change,
+5. **Report, and wait, for anything judgmental** — a mapping you want to change,
    a code you want to delete, a status you would reassign. These are the user's
    decisions; the code is written by hand and may be deliberate.
-7. Verify.
-8. If the user corrects you, fix the code **and** append a lesson.
+6. Verify.
+7. If the user corrects you, fix the code and record the correction as described
+   at the end of this file.
 
 Adding is safe to do unprompted; changing or deleting is not. When in doubt,
 which action you are taking decides whether to wait.
@@ -88,22 +103,25 @@ delete it from `openapi.yaml` is the user's decision, not yours.
   Grouping is legitimate when the response really is identical, and wrong when
   it erases a distinction the caller needs.
 - **Status code follows the cause.** 4xx for something the caller did or asked
-  for, 5xx for a failure on our side (storage broken, model backend down).
-- **`NewError` must always return a non-nil value with `StatusCode` set.**
-  `encodeErrorResponse` dereferences `response.StatusCode`
-  (`oas_response_encoders_gen.go`), so a nil return panics inside the handler
-  instead of producing a response. A non-nil value with a zero status is not an
-  error either: the encoder rewrites `0` into **200 OK**, so the failure travels
-  as a success. `UnimplementedHandler.NewError` returns exactly such an empty
-  value — never copy it.
+  for, 5xx for a failure on our side (storage broken, model backend down). A path
+  the spec does not serve is 404, not 400: `NotFoundHandler` answers it, and a 400
+  would tell the client to fix a request that is not broken, besides making the
+  two failures indistinguishable in logs and devtools.
+- **The body code names the same cause as the status.** A 404 body carries
+  `NOT_FOUND`, never `BAD_REQUEST` borrowed because the value exists. A status and
+  a code that disagree are worse than either alone.
+- **Never emit a zero status.** The per-operation encoders (`encodeAddFactResponse`
+  and friends in `oas_response_encoders_gen.go`) rewrite an `AppErrorStatusCode`
+  with `StatusCode == 0` into **200 OK**, so a failure would travel as a success.
+  Always set the status explicitly.
 
 ### Direction 5 — the default is honest
 
-The `default` branch catches every error nobody anticipated. Whatever status
-and code it uses will be attached to an unknown failure, so it must not claim a
-specific known cause. If no enum value means "unmapped failure", the spec needs
-one (`INTERNAL_ERROR` already exists) — propose that instead of borrowing
-another code.
+The fallthrough at the end of `mapDomainError` catches every error nobody
+anticipated. Whatever status and code it uses will be attached to an unknown
+failure, so it must not claim a specific known cause. If no enum value means
+"unmapped failure", the spec needs one (`INTERNAL_ERROR` already exists) — propose
+that instead of borrowing another code.
 
 ## Adding a handler
 
@@ -111,10 +129,10 @@ another code.
    is the same meaning, not merely the same area.
 2. If no value fits, add a SCREAMING_SNAKE entry to `errorCode` in
    `internal/controllers/web/openapi.yaml`.
-3. Run `make generate`. This regenerates **both** `internal/controllers/web/server`
-   and `cmd/api/server`, because `cmd/api/openapi.go` carries its own
-   `go:generate` line. `--clean` wipes the target directory, so never put
-   hand-written code inside a `server/` directory.
+3. Run `make api-generate`. It regenerates `internal/controllers/web/server` from
+   `openapi.yaml` and the UI client types from the same spec — an enum entry is
+   part of the contract, so both sides have to move together. `--clean` wipes the
+   target directory, so never put hand-written code inside a `server/` directory.
 4. Take the constant name from `oas_schemas_gen.go`, not from the spec. ogen
    strips underscores: `FACT_DOES_NOT_EXIST` → `ErrorCodeFACTDOESNOTEXIST`,
    `BAD_REQUEST` → `ErrorCodeBADREQUEST`. A guessed name does not compile.
@@ -128,39 +146,31 @@ go build ./internal/controllers/web/
 CGO_ENABLED=0 go test ./...
 ```
 
-`go build` fails while `*Methods` misses a handler method ogen requires; that is
-an unrelated, pre-existing failure. Confirm your file is not named in the error
-before reporting success. If the terminal sandbox refuses to write
-`~/Library/Caches/go-build`, request write access to `GOCACHE` and `GOMODCACHE`
-instead of concluding the code is broken.
+`go build ./internal/controllers/web/` must be clean: a handler method ogen
+requires but `*Methods` does not implement fails the build. If the terminal
+sandbox refuses to write `~/Library/Caches/go-build`, request write access to
+`GOCACHE` and `GOMODCACHE` instead of concluding the code is broken.
 
-## Learning from corrections
+## Recording a correction
 
 This is the part that makes the skill improve. It runs only when the **user**
-tells you a decision was wrong.
+tells you a decision was wrong — not when the code merely looks suspicious.
 
-When that happens, do all three:
+1. Fix the incorrect mapping.
+2. Write the rule down where the next run will read it:
 
-1. Fix the incorrect handler.
-2. Append an entry to `LESSONS.md` — never rewrite or delete an existing one.
-3. Keep the entry short enough to be read on every future run.
+   - a rule about the mapping → the audit bullet or section it governs in this
+     file, one line, with the reason in a clause;
+   - a decision about the project → the matching file in `decisions/`, rewritten
+     in the `## Decision` / `## Why` format described in `AGENTS.md`.
 
-An entry must contain, in this order:
+Rewrite the section instead of appending a story. Every run reads this whole file,
+so it has to stay instructions, and git already keeps the history. Never record a
+rule without its reason: "400 hid a server bug behind a client error" is a reason;
+"the status was wrong" is not.
 
-- **What I did** — the concrete mapping or edit, with the file.
-- **What the user said** — the correction in their words, not your summary of it.
-- **Why it was wrong** — the mechanism, not the verdict. "Status 400 hid a
-  server bug behind a client error" is usable; "the status was wrong" is not.
-- **Rule** — what to do instead, phrased so it can be checked mechanically.
-- **Check** — the grep, build, or command that proves the rule holds.
-
-If a new lesson contradicts an older one, add the new entry and mark the old one
-`(superseded by #N)`. History stays visible; that is how a future run knows the
-decision reversed and why.
-
-Never write a lesson the user did not actually correct. Speculation belongs in
-your reply, not in `LESSONS.md`; a false lesson is worse than no lesson,
-because later runs will follow it.
+Never record a rule the user did not actually correct. Speculation belongs in your
+reply, and a false rule is worse than none, because later runs will follow it.
 
 ## Reporting
 

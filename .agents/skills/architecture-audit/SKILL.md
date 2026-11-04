@@ -1,6 +1,6 @@
 ---
 name: architecture-audit
-description: Audits aimem's layering rules — that every layer meets the others through narrow unexported interfaces, that only cmd/aimem/scaffold.go composes implementations, that no controller imports an adapter or the reverse, that no adapter imports another adapter, and that each layer keeps its own field spelling (CamelCase in Go, camelCase in the contract, snake_case in storage). Fixes violations it can fix, reports the rest, and records every user correction in LESSONS.md. Use after adding or moving a package, after wiring a new dependency, when a review question is "does this respect the architecture", or when a build works but a layer seems to know about another.
+description: Audits aimem's layering rules — that every layer meets the others through narrow unexported interfaces, that only cmd/aimem/scaffold.go composes implementations, that no controller imports an adapter or the reverse, that no adapter imports another adapter, and that each layer keeps its own field spelling (CamelCase in Go, camelCase in the contract, snake_case in storage). Fixes violations it can fix and reports the rest. Use after adding or moving a package, after wiring a new dependency, when a review question is "does this respect the architecture", or when a build works but a layer seems to know about another.
 ---
 
 # Architecture Audit
@@ -10,8 +10,7 @@ through interfaces, never through implementations, and only `scaffold`
 composes.**
 
 A violation always compiles and always passes the tests — that is precisely why it
-needs an audit instead of a review. Read `LESSONS.md` in this skill's directory
-first; it records decisions the user has already made once.
+needs an audit instead of a review.
 
 ## The rule, stated once
 
@@ -196,16 +195,17 @@ without `dist/`. If a UI field was renamed, run `npm run api:generate` first or
 A green build proves nothing about this audit — every violation in this file
 compiles. The greps above are the check.
 
-## Learning from corrections
+## Recording a correction
 
-Runs only when the **user** says a decision was wrong. Append an entry to
-`LESSONS.md`:
+Runs only when the **user** says a decision was wrong. Put the result where the
+next run will read it — never in a separate lessons file:
 
-- what you did,
-- what the user said, quoted,
-- why it was wrong,
-- the rule, stated so a future run can follow it,
-- a check that proves the rule holds.
+- a rule this skill must follow → the audit section it governs, one line, with
+  the reason in a clause;
+- a decision about the project → the matching file in `decisions/`, rewritten in
+  the `## Decision` / `## Why` format described in `AGENTS.md`.
 
-Never edit an existing entry. A reversed decision gets a new entry, and the old
-one is marked `(superseded by #N)`.
+Rewrite the section instead of appending a story. Every run reads this whole file,
+so it has to stay instructions, and git already keeps the history. Never record a
+rule without its reason: an unexplained rule is the one the next run talks itself
+back out of.

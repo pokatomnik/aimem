@@ -10,10 +10,9 @@ import (
 )
 
 func main() {
-	// The signal context comes first: scaffold resolves the authentication mode,
-	// which reaches the config file, so it takes a real context rather than
-	// inventing one. Interrupting startup then works the same way as interrupting
-	// the server.
+	// The signal context comes first so that startup and serving share one
+	// cancellation: scaffold takes it while resolving the authentication mode, and
+	// ExecuteContext hands the same context to whichever command runs.
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		syscall.SIGTERM,
