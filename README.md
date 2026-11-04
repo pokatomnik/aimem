@@ -78,6 +78,9 @@ export AIMEM_DIMENSIONS="768"
 
 # Optional: select Qdrant instead of the embedded backend
 # export AIMEM_QDRANT_HOST="http://127.0.0.1:6333"
+
+# Optional: Qdrant users and their tokens, as a JSON array
+# export AIMEM_USERS_JSON='[{"id":"alice","tokens":["a-long-random-string"]}]'
 ```
 
 Settings marked `Required` have no default; all others are optional:
@@ -93,6 +96,7 @@ Settings marked `Required` have no default; all others are optional:
 | `AIMEM_WEB_HTTP_HOST`        | `127.0.0.1:8888`         | Address for the `web` server: HTTP API, MCP endpoint, and UI.                                                                                |
 | `AIMEM_QDRANT_HOST`          | Empty (embedded backend) | Qdrant base URL. Any non-empty value switches storage from the embedded index to Qdrant.                                                     |
 | `AIMEM_QDRANT_API_KEY`       | Empty                    | Sent as the `api-key` header when set; omitted when empty.                                                                                   |
+| `AIMEM_USERS_JSON`           | Empty                    | Qdrant users and their tokens as a JSON array; ignored by the embedded backend. See [Users and tokens](#3-add-users-and-tokens-qdrant-only). |
 
 A typo in a variable name means that value is not applied; required variables
 must be set or startup fails. `recall` applies `AIMEM_TOP_K` first and then filters
@@ -105,23 +109,23 @@ limit, or none at all, even when related facts exist.
 
 ### 3. Add users and tokens (Qdrant only)
 
-Whether the server requires a token is decided by the **storage backend**. The
-`[[users]]` file supplies credentials for Qdrant; it does not enable auth for the
-embedded backend:
+Whether the server requires a token is decided by the **storage backend**.
+`AIMEM_USERS_JSON` supplies credentials for Qdrant; it does not enable auth for
+the embedded backend:
 
-| Backend         | `[[users]]` section | Authentication                 |
-| --------------- | ------------------- | ------------------------------ |
-| Embedded (`kv`) | ignored             | not required — the API is open |
-| Qdrant          | **required**        | every request needs a token    |
+| Backend         | `AIMEM_USERS_JSON` | Authentication                 |
+| --------------- | ------------------ | ------------------------------ |
+| Embedded (`kv`) | ignored            | not required — the API is open |
+| Qdrant          | **required**       | every request needs a token    |
 
 With the embedded backend there is nothing to partition: `~/.aimem` is one
-operator's local files, and `userID` is not used by the storage at all. A
-`[[users]]` section there is simply ignored, so nothing breaks if you add one and
-later stay on the embedded backend.
+operator's local files, and `userID` is not used by the storage at all. The
+variable is simply ignored there, so nothing breaks if you set one and later
+stay on the embedded backend.
 
 With Qdrant each user gets a separate collection, so the server cannot answer a
 request without knowing who is asking. **`aimem` refuses to start when Qdrant is
-configured and no user is defined**, with:
+configured and the list defines no token**, with:
 
 ```
 no users configured
@@ -130,20 +134,16 @@ no users configured
 That failure is deliberate: starting anyway would answer every request with
 `401` and leave no way to fix it from the UI.
 
-#### The section
+#### The format
 
-For Qdrant, create `~/.config/aimem/config.toml` with at least one `[[users]]`
-entry. This file is separate from the runtime environment variables above and
-contains only the user IDs and tokens used for authentication:
+`AIMEM_USERS_JSON` is a JSON array of users, each with an `id` and a list of
+`tokens`:
 
-```toml
-[[users]]
-id = "alice"
-tokens = ["a-long-random-string"]
-
-[[users]]
-id = "bob"
-tokens = ["another-random-string", "a-second-token-for-bob"]
+```json
+[
+  { "id": "alice", "tokens": ["a-long-random-string"] },
+  { "id": "bob", "tokens": ["another-random-string", "a-second-token-for-bob"] }
+]
 ```
 
 | Key      | Required | Description                                                            |
@@ -153,6 +153,11 @@ tokens = ["another-random-string", "a-second-token-for-bob"]
 
 `id` is the only field that describes the user; `tokens` are credentials, not
 identity. A user with no tokens can be configured but will never authenticate.
+The startup check counts tokens rather than entries, so a list in which no user
+has a token is treated as no users at all and stops the server.
+
+The value is parsed once, when the server starts, into a map from token to user.
+Adding, changing or removing an entry takes effect on the next start.
 
 #### The `id` format is the collection-name format
 
@@ -163,15 +168,15 @@ identity. A user with no tokens can be configured but will never authenticate.
 - No spaces, no dots, no `/`, no `@`, no non-ASCII characters.
 - Practical bounds: keep it short, and do not start it with `_` or `-`.
 
-```toml
-# correct
-id = "alice"
-id = "team-1_a"
+```jsonc
+// correct
+{ "id": "alice" }
+{ "id": "team-1_a" }
 
-# wrong — Qdrant rejects the resulting collection name
-id = "alice@example.com"
-id = "Иван"
-id = "my team"
+// wrong — Qdrant rejects the resulting collection name
+{ "id": "alice@example.com" }
+{ "id": "Иван" }
+{ "id": "my team" }
 ```
 
 A `/` is the worst case: it would address a different URL path entirely. An email
@@ -183,10 +188,10 @@ Because each user owns a whole collection, two users storing the same text do no
 collide — that is why the partition is per collection rather than a field in the
 shared one.
 
-A user can hold several tokens, which is how you rotate one without downtime:
-add the new token, switch the client, then remove the old one. The lookup is a
-linear scan over this file on every request — it is small by design and read from
-disk each time, so an edit takes effect without restarting the server.
+A user can hold several tokens, which is how you rotate one: list the new token
+next to the old one, restart, move the clients over, then drop the old token and
+restart again. Every one of those steps needs a restart, because the list is
+parsed once at startup into a token-to-user map rather than re-read per request.
 
 ### 4. Start the vector database (Qdrant)
 
@@ -420,9 +425,9 @@ initialization.
 
 The MCP tools authenticate the same way as the REST API. With Qdrant, every
 `tools/call` must carry an `Authorization: Bearer <token>` header, and the token
-decides which user's facts the call reads or writes. Tokens come from the
-`[[users]]` entries of `~/.config/aimem/config.toml` (see
-[Users and tokens](#3-add-users-and-tokens-qdrant-only)); a missing or unknown
+decides which user's facts the call reads or writes. Tokens come from
+`AIMEM_USERS_JSON`, described in
+[Users and tokens](#3-add-users-and-tokens-qdrant-only); a missing or unknown
 token is rejected without touching data. With the embedded backend, calls are
 anonymous and do not require a token.
 
@@ -477,9 +482,9 @@ purely a client-side operation, and it clears the query cache, since every entry
 in it was fetched under the identity being dropped.
 
 There is no session expiry, and no server-side logout: to revoke a token itself,
-remove it from `[[users]]` in `config.toml`. The server re-reads the file on
-every request, so the token stops working immediately while any copy in a browser
-becomes a harmless stale string.
+remove it from `AIMEM_USERS_JSON` and restart the server. The list is parsed once
+at startup, so until that restart the token keeps working; afterwards any copy
+left in a browser is a harmless stale string.
 
 The API contract lives in `internal/controllers/web/openapi.yaml`.
 

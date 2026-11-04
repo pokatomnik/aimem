@@ -10,7 +10,6 @@ require (
 	github.com/gorse-io/xvec v0.0.0-20261002134013-db70c9ad03b0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/ogen-go/ogen v1.24.0
-	github.com/pelletier/go-toml/v2 v2.0.5
 	github.com/spf13/cobra v1.10.2
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/metric v1.47.0

@@ -41,11 +41,11 @@ func scaffold(ctx context.Context) (*cobra.Command, error) {
 	users := rUsersPackage.New(cfg)
 
 	// One decision, taken once and expressed in the constructors below: whether this
-	// deployment is per-user at all. It follows the storage backend, not the file
-	// contents — Qdrant partitions by user and therefore needs a token, the embedded
-	// index serves one local operator and ignores the user ID. With Qdrant and no
-	// [[users]] this call fails, which stops the app before it serves anything a
-	// client could not get past.
+	// deployment is per-user at all. It follows the storage backend, not the
+	// configured users — Qdrant partitions by user and therefore needs a token, the
+	// embedded index serves one local operator and ignores the user ID. With Qdrant
+	// and no user in AIMEM_USERS_JSON this call fails, which stops the app before it
+	// serves anything a client could not get past.
 	authRequired, err := users.RequireAuthentication(ctx)
 	if err != nil {
 		return nil, err

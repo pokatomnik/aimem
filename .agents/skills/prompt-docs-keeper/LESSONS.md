@@ -100,3 +100,60 @@ docs, report only what the docs get wrong; keep code observations to a short
 **Check.** `grep -c mcpPrefix internal/controllers/web/handler.go` returns 2 —
 declaration and use. For any "unused symbol" claim, the same grep must come back
 with a count of 1 (declaration only) before the claim is written down.
+
+---
+
+## #4 — A swallowed parse error is a logging decision, not a crash
+
+**What I did.** Reported `internal/repositories/users/users.go:36-39`
+(`if err != nil { return result }`) as bug B2: a malformed `AIMEM_USERS_JSON`
+degrades to an empty user map, which surfaces as `ErrNoUsersConfigured`, and I
+asked for a startup error before documenting anything.
+
+**What the user said.** «Ошибка парсинга и должна проглатываться, здесь будет
+решение на уровне логгирования, а не на уровне "упасть если JSON не парсится"».
+
+**Why it was wrong.** I read "returns an empty map" as the end of the path and
+assumed the defect was that nothing stopped the process. The path continues one
+layer up: with Qdrant the empty map hits `len(configured) == 0` and answers
+`ErrNoUsersConfigured`, and `scaffold` refuses to start on that error. So the
+deployment is never served with a broken user list; what is missing is the cause
+in the log, which is a separate concern the user intends to solve on its own.
+Turning `New` into a second error channel would push that decision into the
+repository.
+
+**Rule.** Before calling a swallowed error a bug, follow the degraded value to
+its caller. When the degraded value still stops the process, the finding is at
+most a judgment call about the message, and it does not block documentation.
+
+**Check.** `grep -n "ErrNoUsersConfigured" internal/repositories/users/users.go`
+— the empty map reaches a branch whose error stops `scaffold`, so no request is
+served against a half-parsed list.
+
+---
+
+## #5 — Duplicate tokens are accepted on purpose
+
+**What I did.** Reported `users.go:44` (`result[token] = ...`, last wins) as bug
+B3: a token listed under two users silently authenticates as the later one, and
+the previous file-based lookup was first-wins, so the semantics changed silently.
+I wanted duplicates rejected at parse time.
+
+**What the user said.** «Дубликат токенов это ок, там не будет тысячи
+пользователей, а если будет то решение добавлять пользователей через env уже не
+будет подходить. Сейчас это избыточно.»
+
+**Why it was wrong.** I treated an authoring mistake in hand-written config as an
+adversarial input. The list is small by design — it is typed into an environment
+variable by one operator — so a duplicate is a typo that is visible on sight, and
+enforcing it adds an error path and a message for a case the deployment model
+itself excludes. The migration to some other user source is the moment that
+validation becomes worth writing, not now.
+
+**Rule.** "It could happen" is not enough to call a validation gap a bug when the
+input is hand-written config of a bounded size. Report it as a judgment call, and
+never block the docs on it.
+
+**Check.** `grep -n "result\[token\]" internal/repositories/users/users.go`
+shows a plain assignment with no duplicate branch — that is the accepted design,
+not a missing check.

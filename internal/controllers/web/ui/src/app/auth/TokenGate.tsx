@@ -13,8 +13,8 @@ export type TokenGateProps = {
 /**
  * The only thing a user sees until a token is stored. There is no login flow, so
  * it is deliberately a single field and a single button — the token is the whole
- * session, and it comes from the `[[users]]` section of the server's
- * `config.toml`.
+ * session, and it is one of the tokens the operator listed in the server's
+ * `AIMEM_USERS_JSON`.
  *
  * Logging out returns here: dropping the stored token leaves the gate with no
  * token to show, which is exactly the state this component renders.
@@ -46,8 +46,7 @@ export const TokenGate = ({ onSave }: TokenGateProps): ReactNode => {
           <h1 className={styles.title}>Token required</h1>
           <p className={styles.subtitle}>
             This server keeps a separate memory per user, so it needs to know
-            who you are. Paste a token from the <code>[[users]]</code> section
-            of the server&apos;s config.
+            who you are. Paste a token issued by the server operator.
           </p>
 
           <form

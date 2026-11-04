@@ -50,8 +50,9 @@ Text that reaches a model, and must stay in sync with code:
 App configuration does not reach a model. `cmd/aimem/config.go` reads runtime
 settings from `AIMEM_*` process environment variables; its env tags are the source
 of truth for names, required values, and defaults. There is no generated config
-template or `.env` loader. Qdrant authentication is separate: `internal/repositories/users`
-reads `[[users]]` from `~/.config/aimem/config.toml`.
+template or `.env` loader. Qdrant authentication is separate:
+`internal/repositories/users` parses `AIMEM_USERS_JSON` — a JSON array of
+`{"id": ..., "tokens": [...]}` entries — once at startup and caches it.
 
 `AGENTS.md` and `README.md` do not reach a model, but must match the code and the CLI.
 
@@ -72,7 +73,7 @@ Check these before trusting any sentence in the docs. Each one has already been 
 
 ### Config
 
-- **Read the env tags, not a generated template.** `cmd/aimem/config.go` uses `caarlos0/env`; compare each `AIMEM_*` name and `envDefault`/`required` tag with the getters and its consumers. The app reads the process environment and does not load `.env` files. The separate TOML file under `~/.config/aimem/` is read only for Qdrant `[[users]]` entries.
+- **Read the env tags, not a generated template.** `cmd/aimem/config.go` uses `caarlos0/env`; compare each `AIMEM_*` name and `envDefault`/`required` tag with the getters and its consumers. The app reads the process environment and does not load `.env` files. There is no config file: the Qdrant user list is `AIMEM_USERS_JSON`, a JSON array parsed once at startup.
 - **Check defaults and required values.** `AIMEM_EMBEDDING_MODEL`, `AIMEM_SUMMARIZATION_MODEL`, and `AIMEM_DIMENSIONS` are required. `AIMEM_TOP_K` defaults to 5, `AIMEM_SIMILARITY_THRESHOLD` to 0.7 (clamped to `0..1`), and an empty `AIMEM_QDRANT_HOST` selects the embedded backend.
 
 ### Recall and the similarity threshold

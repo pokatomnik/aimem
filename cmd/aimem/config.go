@@ -12,6 +12,7 @@ type Config struct {
 	WebHTTPHost         string  `env:"AIMEM_WEB_HTTP_HOST" envDefault:"127.0.0.1:8888"`
 	QdrantHost          string  `env:"AIMEM_QDRANT_HOST"`
 	QdrantAPIKey        string  `env:"AIMEM_QDRANT_API_KEY"`
+	UsersJSON           string  `env:"AIMEM_USERS_JSON"`
 }
 
 func GetConfig() (*Config, error) {
@@ -61,4 +62,8 @@ func (c *Config) GetQdrantHost() string {
 
 func (c *Config) GetQdrantAPIKey() string {
 	return c.QdrantAPIKey
+}
+
+func (c *Config) GetUsersJSON() string {
+	return c.UsersJSON
 }

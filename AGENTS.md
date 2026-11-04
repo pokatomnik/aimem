@@ -33,11 +33,11 @@ Code is layered, with dependencies pointing inward:
   interfaces it consumes.
 - `internal/entities/` — domain types (`fact`, `ollama`, `user`) and sentinel
   errors (`apperrors`).
-- `internal/repositories/users/` — reads the `[[users]]` entries of
-  `~/.config/aimem/config.toml` and resolves a bearer token to a user. This file
-  is separate from the `AIMEM_*` runtime settings and is used only for Qdrant
-  authentication. It is read from disk on every request, so an edit takes effect
-  without a restart.
+- `internal/repositories/users/` — parses `AIMEM_USERS_JSON` and resolves a
+  bearer token to a user. It is used only for Qdrant authentication and is
+  ignored by the embedded backend. The list is parsed once, on first use, and
+  cached for the lifetime of the process, so a change takes effect on the next
+  start.
 - `internal/repositories/kv/` — the embedded backend. The xvec collection sits
   behind the unexported `collection` interface so tests can fake it.
 - `internal/repositories/qdrant/` — the same storage contract backed by Qdrant over
@@ -48,8 +48,8 @@ Code is layered, with dependencies pointing inward:
 - `internal/shared/` — cross-cutting helpers.
 
 Runtime data lives in `~/.aimem` for the embedded backend. Runtime settings come
-from `AIMEM_*` process environment variables. The TOML file at
-`~/.config/aimem/config.toml` is only needed for Qdrant user IDs and tokens.
+from `AIMEM_*` process environment variables; there is no config file, and the
+Qdrant user list travels in `AIMEM_USERS_JSON` like every other setting.
 
 ## Architecture Overview
 
@@ -128,10 +128,11 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
   contract: the embedded `xvec` index and Qdrant over HTTP. `scaffold` picks
   Qdrant when `AIMEM_QDRANT_HOST` is non-empty and the embedded one otherwise.
   Runtime settings are read from process environment variables by
-  `cmd/aimem/config.go`; there are no CLI flags or `.env` loader. The separate
-  `~/.config/aimem/config.toml` file supplies `[[users]]` only for Qdrant
-  authentication. `AIMEM_EMBEDDING_MODEL`, `AIMEM_SUMMARIZATION_MODEL`, and
-  `AIMEM_DIMENSIONS` are required; defaults are defined by the env tags.
+  `cmd/aimem/config.go`; there are no CLI flags or `.env` loader. Qdrant users
+  and their tokens come from `AIMEM_USERS_JSON`, a JSON array of
+  `{"id": ..., "tokens": [...]}` entries parsed once at startup.
+  `AIMEM_EMBEDDING_MODEL`, `AIMEM_SUMMARIZATION_MODEL`, and `AIMEM_DIMENSIONS`
+  are required; defaults are defined by the env tags.
 - **A fact's ID is derived from its text**, so the ID and the content cannot
   disagree. The digest is shaped per backend: `kv` stores the full 64-character
   SHA-256 hex, while Qdrant takes the first 32 hex characters as a UUID (Qdrant
@@ -160,10 +161,10 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
   issues one `POST /api/v1/fact` per fact.
 - **Authentication follows the storage backend, not the config contents.**
   `users.RequireAuthentication` makes that one decision: with the embedded backend
-  it returns `false` and every request runs anonymously (the `[[users]]` section,
-  if present, is ignored, because `kv` ignores `userID`); with Qdrant it returns
-  `true` and **fails to start** with `ErrNoUsersConfigured` when no user is
-  defined.
+  it returns `false` and every request runs anonymously (`AIMEM_USERS_JSON`, if
+  set, is ignored, because `kv` ignores `userID`); with Qdrant it returns `true`
+  and **fails to start** with `ErrNoUsersConfigured` when the list defines no
+  token.
 
   It is asked once, in `scaffold`, with the context `main` provides — and the
   answer is expressed the same way for both servers: **two constructors each**, no
@@ -213,8 +214,8 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
   already knows the answer when it builds the page, and an endpoint would let the
   two drift. The token lives in `localStorage` under `aimem.token`. Logging out
   is client-side only — the error block drops the token and shows the form again
-  — so revoking a token for real means editing `[[users]]`, which takes effect on
-  the next request because the file is re-read every time.
+  — so revoking a token for real means removing it from `AIMEM_USERS_JSON` and
+  restarting, because the list is parsed once and cached.
 
 ## Prompts and Documentation
 
