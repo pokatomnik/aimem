@@ -39,11 +39,11 @@ adapters/     ──► entities/, shared/ (declares its own seams)
 Nothing may import `repositories/` or `adapters/` except `scaffold`. Exceptions
 are about **data, not behaviour**:
 
-| Importable everywhere  | Why                                                                      |
-| ---------------------- | ------------------------------------------------------------------------ |
-| `internal/entities/**` | `fact.FactFullView`, `user.User`, `apperrors` sentinels, `ollama` types. |
-| `internal/shared/**`   | Cross-cutting helpers, by design.                                        |
-| `cmd/aimem` `main`     | Entry point of the composition root.                                     |
+| Importable everywhere  | Why                                                                               |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| `internal/entities/**` | `fact.FactFullView`, `user.User`, `embeddings.Embeddings`, `apperrors` sentinels. |
+| `internal/shared/**`   | Cross-cutting helpers, by design.                                                 |
+| `cmd/aimem` `main`     | Entry point of the composition root.                                              |
 
 A package may import its own subpackages (`servers/mcp` → `servers/mcp/tools`).
 That is not a cross-layer edge.
@@ -70,7 +70,7 @@ grep -rn "internal/adapters/" --include=*.go internal/adapters/ \
   | grep -v "adapters/servers/mcp/"
 ```
 
-Any package pair that is not parent→child is a violation. `ollama` importing
+Any package pair that is not parent→child is a violation. `llm` importing
 `servers/mcp` to reuse a helper is a bug even when the helper is trivial; put the
 shared code in `internal/entities` or `internal/shared`.
 
@@ -82,7 +82,7 @@ grep -rn "internal/repositories\|internal/adapters\|internal/controllers" \
 ```
 
 Must be empty. A use case declares the interfaces it consumes (see
-`internal/use_cases/recall`, which declares `ai` and its store) and `scaffold`
+`internal/use_cases/recall`, which declares `embedder` and its store) and `scaffold`
 satisfies them.
 
 ### 4. Only the composition root imports implementations

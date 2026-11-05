@@ -28,11 +28,11 @@ confirmed. Never finish a turn in which the user corrected you without step 7.
 
 Text that reaches a model, and must stay in sync with code:
 
-| File                                               | Embedded in                                              | Sent to                                | Keep in sync with                                                                       |
-| -------------------------------------------------- | -------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------- |
-| `internal/adapters/servers/mcp/INSTRUCTIONS.md`    | `internal/adapters/servers/mcp/server.go` (`//go:embed`) | the MCP client, as server instructions | tool names, inputs, outputs, and behavior in `internal/adapters/servers/mcp/tools/*.go` |
-| `internal/adapters/ollama/SUMMARIZATION_SYSTEM.md` | `internal/adapters/ollama/summarization.go`              | the summarization model                | the prompt built in `Summarize(...)`, `NumPredict`, and what `remember` stores          |
-| Tool descriptions and `jsonschema` tags            | each `tools/*.go` file                                   | the model, via `tools/list`            | the handler's actual inputs and outputs                                                 |
+| File                                            | Embedded in                                              | Sent to                                | Keep in sync with                                                                       |
+| ----------------------------------------------- | -------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------- |
+| `internal/adapters/servers/mcp/INSTRUCTIONS.md` | `internal/adapters/servers/mcp/server.go` (`//go:embed`) | the MCP client, as server instructions | tool names, inputs, outputs, and behavior in `internal/adapters/servers/mcp/tools/*.go` |
+| `internal/adapters/llm/SUMMARIZATION_SYSTEM.md` | `internal/adapters/llm/consts.go`                        | the summarization model                | the prompt built in `Summarize(...)`, `MaxTokens`, and what `remember` stores           |
+| Tool descriptions and `jsonschema` tags         | each `tools/*.go` file                                   | the model, via `tools/list`            | the handler's actual inputs and outputs                                                 |
 
 App configuration does not reach a model. `cmd/aimem/config.go` reads runtime
 settings from `AIMEM_*` process environment variables; its env tags are the source
@@ -61,8 +61,8 @@ Check these before trusting any sentence in the docs. Each one has already been 
 
 ### Config
 
-- **Read the env tags, not a generated template.** `cmd/aimem/config.go` uses `caarlos0/env`; compare each `AIMEM_*` name and `envDefault`/`required` tag with the getters and its consumers. The app reads the process environment and does not load `.env` files. There is no config file: the Qdrant user list is `AIMEM_USERS_JSON`, a JSON array parsed once at startup.
-- **Check defaults and required values.** `AIMEM_EMBEDDING_MODEL`, `AIMEM_SUMMARIZATION_MODEL`, and `AIMEM_DIMENSIONS` are required. `AIMEM_TOP_K` defaults to 5, `AIMEM_SIMILARITY_THRESHOLD` to 0.7 (clamped to `0..1`), and an empty `AIMEM_QDRANT_HOST` selects the embedded backend.
+- **Read the env tags, not a generated template.** `cmd/aimem/config.go` uses `caarlos0/env`; compare each `AIMEM_*` name and `envDefault`/`required` tag with the getters and its consumers. The app reads the process environment and does not load `.env` files. There is no config file: the Qdrant user list is `AIMEM_USERS_JSON`, a JSON array parsed once at startup. The major version in `go.mod` decides which tag options exist — v3.5.0 rejected `notEmpty` and the app could not start at all, so check an unfamiliar option against the pinned version, not against the project README.
+- **Check defaults and required values.** `AIMEM_LLM_HOST`, `AIMEM_SUMMARIZATION_MODEL`, and `AIMEM_DIMENSIONS` are mandatory and must be non-empty. `AIMEM_TOP_K` defaults to 5, `AIMEM_SIMILARITY_THRESHOLD` to 0.7 (clamped to `0..1`), and an empty `AIMEM_QDRANT_HOST` selects the embedded backend. An empty value on an optional setting falls back to its default; only the mandatory three reject it, because `notEmpty` covers both absence and emptiness while `required` covers only absence.
 
 ### Recall and the similarity threshold
 

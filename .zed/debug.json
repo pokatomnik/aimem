@@ -19,8 +19,8 @@
       "proxy_all": "socks5h://127.0.0.1:1080",
       "PROXY_ALL": "socks5h://127.0.0.1:1080",
 
-      "LLM_HOST": "https://api.deepseek.com",
-      "LLM_API_KEY": "sk-a8d9aa57ef07447182228df3ae6d8a27",
+      "AIMEM_LLM_HOST": "https://api.deepseek.com",
+      "AIMEM_LLM_API_KEY": "sk-a8d9aa57ef07447182228df3ae6d8a27",
       "AIMEM_SUMMARIZATION_MODEL": "deepseek-flash",
       "AIMEM_TOP_K": "5",
       "AIMEM_SIMILARITY_THRESHOLD": "0.5",

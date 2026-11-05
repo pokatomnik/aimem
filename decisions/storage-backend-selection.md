@@ -11,10 +11,10 @@ backend otherwise.
 
 Runtime settings come from `AIMEM_*` process environment variables, read by
 `cmd/aimem/config.go`. There are no CLI flags, no `.env` loader and no config
-file: the name, whether a setting is required, and its default all live in the
-`Config` env tags. `AIMEM_EMBEDDING_MODEL`, `AIMEM_SUMMARIZATION_MODEL` and
-`AIMEM_DIMENSIONS` are required. The Qdrant user list travels in
-`AIMEM_USERS_JSON` like every other setting.
+file: the name, whether a setting is mandatory, and its default all live in the
+`Config` env tags. `AIMEM_LLM_HOST`, `AIMEM_SUMMARIZATION_MODEL` and
+`AIMEM_DIMENSIONS` are mandatory and must be non-empty. The Qdrant
+user list travels in `AIMEM_USERS_JSON` like every other setting.
 
 ## Why
 

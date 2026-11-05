@@ -1,8 +1,13 @@
 # aimem
 
 `aimem` is a small command-line long-term memory for AI assistants. It stores
-facts, generates embeddings through [Ollama](https://ollama.com), and retrieves
-the most relevant facts for a question by meaning, using cosine similarity.
+facts, embeds them locally, and retrieves the most relevant facts for a question
+by meaning, using cosine similarity.
+
+Embeddings are computed in-process by EmbeddingGemma 2: the weights are
+downloaded once into `~/.aimem/models/gemma` on first use and then reused
+offline. No embedding service is involved. Short summaries come from any server
+that speaks the chat completions API, addressed by `AIMEM_LLM_HOST`.
 
 Two storage backends are available; `AIMEM_QDRANT_HOST` chooses between them:
 
@@ -12,8 +17,8 @@ Two storage backends are available; `AIMEM_QDRANT_HOST` chooses between them:
   machine. Set `AIMEM_QDRANT_HOST` to switch; see
   [Start the vector database](#4-start-the-vector-database-qdrant).
 
-Ollama does the embedding and summarization in both cases. With the embedded
-backend everything runs on your machine.
+With the embedded backend and a local model server, the only traffic that leaves
+the machine is the one-time model download.
 
 ## Features
 
@@ -31,18 +36,17 @@ backend everything runs on your machine.
   `internal/controllers/web/ui` and embedded into the binary with `go:embed`.
   `make build` and `make test` both run `npm ci` and `vite build` first, so a
   bare `go build ./...` on a fresh clone fails until `make ui-build` has run.
-- [Ollama](https://ollama.com) running locally or reachable over HTTP.
+- Network access for the first embedding: the model weights are fetched from
+  HuggingFace into `~/.aimem/models/gemma` and reused offline afterwards. The
+  model is fixed; there is no setting to choose another one.
+- A server that speaks the chat completions API, reachable over HTTP — a local
+  runtime or a hosted provider. This is the only network dependency at request
+  time.
 - [Docker](https://docs.docker.com/get-docker/) with the Compose plugin, only if
   you want to use the bundled Qdrant service.
-- An embedding model and a text-generation model pulled in Ollama, for example:
-
-  ```sh
-  ollama pull embeddinggemma-2:740m
-  ollama pull gemma4:e2b
-  ```
-
-  Any model that supports the `embed` API can be used for embeddings. The
-  summarization model can be any instruction-following model.
+- The name of a text-generation model on that server. It is sent as the `model`
+  field, so it must be a name the server knows. Any instruction-following model
+  works.
 
 ## Setup
 
@@ -72,9 +76,12 @@ Make sure the install directory is in your `PATH`.
 `.env` files itself. Set the required variables where the application runs:
 
 ```sh
-export AIMEM_EMBEDDING_MODEL="embeddinggemma-2:740m"
-export AIMEM_SUMMARIZATION_MODEL="gemma4:e2b"
+export AIMEM_LLM_HOST="http://127.0.0.1:8000/v1"
+export AIMEM_SUMMARIZATION_MODEL="your-model-name"
 export AIMEM_DIMENSIONS="768"
+
+# Optional: key for the model server
+# export AIMEM_LLM_API_KEY="a-long-random-string"
 
 # Optional: select Qdrant instead of the embedded backend
 # export AIMEM_QDRANT_HOST="http://127.0.0.1:6333"
@@ -83,29 +90,34 @@ export AIMEM_DIMENSIONS="768"
 # export AIMEM_USERS_JSON='[{"id":"alice","tokens":["a-long-random-string"]}]'
 ```
 
-Settings marked `Required` have no default; all others are optional:
+Settings marked `Required` have no default and refuse an empty value; all others are optional:
 
 | Variable                     | Required / default       | Description                                                                                                                                  |
 | ---------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AIMEM_OLLAMA_HOST`          | `http://127.0.0.1:11434` | Base URL of the Ollama server.                                                                                                               |
-| `AIMEM_EMBEDDING_MODEL`      | Required                 | Model used through Ollama's `/api/embed` endpoint.                                                                                           |
-| `AIMEM_SUMMARIZATION_MODEL`  | Required                 | Model used through `/api/generate` to produce short summaries.                                                                               |
+| `AIMEM_LLM_HOST`             | Required, non-empty      | Base URL of the chat completions server, ending at the version segment, e.g. `http://127.0.0.1:8000/v1`. `/chat/completions` is appended.    |
+| `AIMEM_LLM_API_KEY`          | Empty                    | Sent as `Authorization: Bearer` when set; the header is omitted when empty.                                                                  |
+| `AIMEM_SUMMARIZATION_MODEL`  | Required, non-empty      | Model name sent in the `model` field when summarizing a fact.                                                                                |
 | `AIMEM_TOP_K`                | `5`                      | Upper bound on the number of results returned by `recall`.                                                                                   |
 | `AIMEM_SIMILARITY_THRESHOLD` | `0.7`                    | Minimum cosine similarity for a fact to be returned; `0` matches everything, `1` requires an exact match. Values outside `0..1` are clamped. |
-| `AIMEM_DIMENSIONS`           | Required                 | Embedding vector size; it is fixed in the database schema when the collection is created.                                                    |
+| `AIMEM_DIMENSIONS`           | Required, non-empty      | Embedding vector size; it is fixed in the database schema when the collection is created. `768` for the bundled model.                       |
 | `AIMEM_WEB_HTTP_HOST`        | `127.0.0.1:8888`         | Address for the `web` server: HTTP API, MCP endpoint, and UI.                                                                                |
 | `AIMEM_QDRANT_HOST`          | Empty (embedded backend) | Qdrant base URL. Any non-empty value switches storage from the embedded index to Qdrant.                                                     |
 | `AIMEM_QDRANT_API_KEY`       | Empty                    | Sent as the `api-key` header when set; omitted when empty.                                                                                   |
 | `AIMEM_USERS_JSON`           | Empty                    | Qdrant users and their tokens as a JSON array; ignored by the embedded backend. See [Users and tokens](#3-add-users-and-tokens-qdrant-only). |
 
-A typo in a variable name means that value is not applied; required variables
-must be set or startup fails. `recall` applies `AIMEM_TOP_K` first and then filters
-by `AIMEM_SIMILARITY_THRESHOLD`, so a query can return fewer results than the
+A typo in a variable name means that value is not applied. The three
+`Required` settings must be present and non-empty, or startup fails;
+`AIMEM_LLM_HOST`, `AIMEM_SUMMARIZATION_MODEL`, and `AIMEM_DIMENSIONS` are
+checked that way, so a blank line in a deployment file stops the process with a
+message naming the variable. Elsewhere an empty value falls back to the default.
+`recall` applies `AIMEM_TOP_K` first and then filters by
+`AIMEM_SIMILARITY_THRESHOLD`, so a query can return fewer results than the
 limit, or none at all, even when related facts exist.
 
-> `AIMEM_DIMENSIONS` must match the number of values returned by the embedding
-> model. If you change it after the database has been created, recreate it —
-> delete `~/.aimem` for the embedded backend, or drop the Qdrant collections.
+> `AIMEM_DIMENSIONS` must match the vector width of the embedding model — 768
+> for the bundled one. If you change it after the database has been created,
+> recreate it — delete `~/.aimem` for the embedded backend, or drop the Qdrant
+> collections.
 
 ### 3. Add users and tokens (Qdrant only)
 
@@ -505,15 +517,15 @@ reply is `{"value":{"summary":"..."}}` — not a bare `{"summary":"..."}`.
 Errors come back as `{"error":"<CODE>","message":"..."}`; the status is part of
 the mapping:
 
-| Status | When                                                                      |
-| ------ | ------------------------------------------------------------------------- |
-| `400`  | Malformed request — bad JSON, a body failing validation, a short `query`. |
-| `401`  | Qdrant is selected and no valid token came with the request.              |
-| `404`  | Unknown route, or a fact that does not exist (`GET` and `DELETE` alike).  |
-| `409`  | The fact already exists (`ALREADY_HAS_FACT`).                             |
-| `422`  | Ollama returned no usable embedding.                                      |
-| `502`  | Ollama itself failed.                                                     |
-| `500`  | Anything else, including a storage conversion error.                      |
+| Status | When                                                                                       |
+| ------ | ------------------------------------------------------------------------------------------ |
+| `400`  | Malformed request — bad JSON, a body failing validation, a short `query`.                  |
+| `401`  | Qdrant is selected and no valid token came with the request.                               |
+| `404`  | Unknown route, or a fact that does not exist (`GET` and `DELETE` alike).                   |
+| `409`  | The fact already exists (`ALREADY_HAS_FACT`).                                              |
+| `422`  | The embedding step produced no vector (`EMPTY_EMBEDDINGS`).                                |
+| `502`  | The summarization server answered with an error or with no choices.                        |
+| `500`  | Anything else, including a storage conversion error and a failure to compute an embedding. |
 
 `401` only happens with Qdrant. With the embedded backend the same endpoints
 answer anonymously, because there is one local operator and nothing to
@@ -552,12 +564,14 @@ batch is therefore safe: the duplicates are rejected and the rest go through.
 ## Data location
 
 With the **embedded** backend all data is stored in `~/.aimem`: the xvec
-collection with embeddings and metadata. Delete the whole directory to start from
-scratch.
+collection with embeddings and metadata, plus the embedding model under
+`~/.aimem/models/gemma`. Delete the whole directory to start from scratch — the
+model is downloaded again on the next embedding.
 
 With **Qdrant** the facts live in the collections described above and nothing is
-written to `~/.aimem`. To reset, drop the collections; `docker compose down -v`
-wipes the bundled instance entirely.
+written to `~/.aimem` except that model directory, which both backends share.
+To reset the facts, drop the collections; `docker compose down -v` wipes the
+bundled instance entirely.
 
 There is no export file. Facts are readable through the API, the UI and the MCP
 tools; a bulk export was removed and is not part of the current behaviour.
@@ -583,15 +597,15 @@ make ui-typecheck # tsc --noEmit
 The UI is embedded with `go:embed all:ui/dist`, so it must exist before the Go
 compiler runs — that is why `build` and `test` depend on `ui-build`.
 
-After changing `internal/controllers/web/openapi.yaml`, regenerate both sides:
+After changing `internal/controllers/web/openapi.yaml`, regenerate both sides in
+one step:
 
 ```sh
-make generate                       # ogen, for the Go server
-cd internal/controllers/web/ui && npm run api:generate   # openapi-typescript
+make api-generate   # ogen → server/  and  openapi-typescript → schema.d.ts
 ```
 
 The generated `schema.d.ts` is committed, so a contract change that skips the
-second step leaves the client typed against the old shapes.
+client half leaves the client typed against the old shapes.
 
 Run `aimem` without arguments (or with `--help`) to list the available
 commands.
@@ -609,7 +623,7 @@ controllers/  ──►  use_cases/  ──►  entities/
  SPA)
         ▲
         │  injected through interfaces
-repositories/ (kv, qdrant, users)      adapters/ (ollama, input, mcp)
+repositories/ (kv, qdrant, users)      adapters/ (embeder, llm, input, mcp)
 ```
 
 ### Layers meet through interfaces, never through implementations

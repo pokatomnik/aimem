@@ -7,12 +7,12 @@ import (
 )
 
 type (
-	// config is the part of the configuration file this repository needs. It is
+	// config is the part of the configuration this repository needs. It is
 	// declared here, next to its only consumer, so the package does not depend on
 	// the config package.
 	config interface {
 		// GetDimensions is the vector size the collection is created with. It must
-		// match the embedding model, e.g. 768 for embeddinggemma-2:740m. Changing it
+		// match the embedded model, e.g. 768 for EmbeddingGemma 2. Changing it
 		// after the collection exists makes Qdrant reject every insert.
 		GetDimensions() uint32
 		// GetQdrantHost is the base URL of the server, without a trailing slash,

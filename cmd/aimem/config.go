@@ -1,14 +1,14 @@
 package main
 
-import "github.com/caarlos0/env"
+import "github.com/caarlos0/env/v11"
 
 type Config struct {
-	LLMHost             string  `env:"LLM_HOST" envDefault:"http://127.0.0.1:11434/v1"`
-	LLMAPIKey           string  `env:"LLM_API_KEY"`
-	SummarizationModel  string  `env:"AIMEM_SUMMARIZATION_MODEL,required"`
+	LLMHost             string  `env:"AIMEM_LLM_HOST,notEmpty"`
+	LLMAPIKey           string  `env:"AIMEM_LLM_API_KEY"`
+	SummarizationModel  string  `env:"AIMEM_SUMMARIZATION_MODEL,notEmpty"`
 	TopK                int     `env:"AIMEM_TOP_K" envDefault:"5"`
 	SimilarityThreshold float32 `env:"AIMEM_SIMILARITY_THRESHOLD" envDefault:"0.7"`
-	Dimensions          uint    `env:"AIMEM_DIMENSIONS,required"`
+	Dimensions          uint    `env:"AIMEM_DIMENSIONS,notEmpty"`
 	WebHTTPHost         string  `env:"AIMEM_WEB_HTTP_HOST" envDefault:"127.0.0.1:8888"`
 	QdrantHost          string  `env:"AIMEM_QDRANT_HOST"`
 	QdrantAPIKey        string  `env:"AIMEM_QDRANT_API_KEY"`
@@ -16,8 +16,25 @@ type Config struct {
 }
 
 func GetConfig() (*Config, error) {
+	return getConfig(nil)
+}
+
+// getConfig parses the process environment, or environ when it is not nil.
+//
+// The map form exists for tests: a test that called GetConfig would read the
+// runner's environment, which the test rules forbid (tests are hermetic), and
+// would silently change meaning depending on the shell that started it. An empty
+// but non-nil map means "nothing is set", so a test can pin what a missing
+// variable does, while nil keeps the production path reading os.Environ.
+func getConfig(environ map[string]string) (*Config, error) {
 	config := &Config{}
-	if err := env.Parse(config); err != nil {
+
+	opts := env.Options{}
+	if environ != nil {
+		opts.Environment = environ
+	}
+
+	if err := env.ParseWithOptions(config, opts); err != nil {
 		return nil, err
 	}
 

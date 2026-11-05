@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
@@ -50,11 +51,15 @@ func (l *LLM) Summarize(ctx context.Context, text string) (string, error) {
 	br := bytes.NewReader(raw)
 
 	baseHost := l.cfg.GetLLMHost()
-	url := fmt.Sprintf("%s/v1/chat/completions", baseHost)
 
-	request, err := http.NewRequestWithContext(ctx, "POST", url, br)
+	u, err := url.JoinPath(baseHost, "chat", "completions")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to build chat completions url: %w", err)
+	}
+
+	request, err := http.NewRequestWithContext(ctx, "POST", u, br)
+	if err != nil {
+		return "", fmt.Errorf("failed to build request: %w", err)
 	}
 
 	request.Header.Add("Content-Type", "application/json; charset=utf-8")
@@ -65,7 +70,7 @@ func (l *LLM) Summarize(ctx context.Context, text string) (string, error) {
 
 	res, err := http.DefaultClient.Do(request)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to perform chat completions request: %w", err)
 	}
 	defer res.Body.Close()
 

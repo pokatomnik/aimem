@@ -4,7 +4,7 @@
 
 Layers meet through interfaces, never through implementations. A package depends
 on the behaviour it needs, declared as a narrow unexported interface next to the
-consumer (`type ai interface`, `type collection interface`), and receives a
+consumer (`type embedder interface`, `type collection interface`), and receives a
 concrete value injected from above. It never names a concrete type from another
 layer — not in a signature, not in a struct field, not in a `new(...)` call, not
 in a type assertion.

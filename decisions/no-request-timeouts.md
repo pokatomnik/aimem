@@ -10,10 +10,10 @@ context is canceled.
 
 ## Why
 
-The expensive calls are embeddings and summarization against a local Ollama: how
-long they take is a property of the machine and the model, not of the request, so
-any deadline would be a guess that fails a legitimate call on a slow host and then
-looks like a bug in the client.
+The expensive calls are the in-process embedding and the summarization request
+to the configured model server: how long they take is a property of the machine
+and the model, not of the request, so any deadline would be a guess that fails a
+legitimate call on a slow host and then looks like a bug in the client.
 
 The operator runs this CLI interactively, so the honest control is Ctrl-C: one
 cancellation path that reaches every backend, instead of a per-request budget that
