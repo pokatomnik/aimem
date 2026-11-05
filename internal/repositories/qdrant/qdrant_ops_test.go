@@ -280,6 +280,10 @@ func TestRemoveFactByIDDeletesExistingPoint(t *testing.T) {
 	}
 }
 
+// Deleting a fact that is not stored succeeds: DELETE is idempotent, so a
+// client can retry it and get the same answer as the first call. The embedded
+// side reports an absent key as a batch error and a per-key error, and both mean
+// "nothing to delete"; here the delete endpoint simply succeeds.
 func TestRemoveFactByIDReportsMissingFact(t *testing.T) {
 	t.Parallel()
 
@@ -287,15 +291,58 @@ func TestRemoveFactByIDReportsMissingFact(t *testing.T) {
 		return http.StatusOK, `{"result":[],"status":"ok"}`
 	}))
 
-	err := repository.RemoveFactByID(context.Background(), testUserID, "01234567-89ab-cdef-0123-456789abcdef")
+	if err := repository.RemoveFactByID(context.Background(), testUserID, "01234567-89ab-cdef-0123-456789abcdef"); err != nil {
+		t.Fatalf("RemoveFactByID returned error: %v", err)
+	}
+
+	last := transport.requests[len(transport.requests)-1]
+
+	if last.Path != pathPointsDelete(testUserID) {
+		t.Fatalf("path = %q, want %q", last.Path, pathPointsDelete(testUserID))
+	}
+}
+
+// An ID Qdrant cannot store is a fact that does not exist, not a conversion
+// error. Qdrant accepts a point ID only as a UUID or a u64, so a string like
+// "not-an-id" cannot name a point in any collection; reporting ErrDBConvertError
+// would turn a caller's mistake — or an ID minted when the embedded backend was
+// selected — into 500 DBCONVERTERROR, while the embedded backend answers 404.
+//
+// The check runs before the collection bootstrap on purpose: there is nothing to
+// provision for an ID that cannot be stored, so the server is never asked.
+func TestGetFactByIDTreatsUnusableIDAsMissing(t *testing.T) {
+	t.Parallel()
+
+	repository, transport := newTestRepository(collectionHandlers(func(recordedRequest) (int, string) {
+		return http.StatusOK, `{"result":[],"status":"ok"}`
+	}))
+
+	_, err := repository.GetFactByID(context.Background(), testUserID, "not-an-id")
 	if !errors.Is(err, apperrors.ErrFactDoesNotExist) {
 		t.Fatalf("err = %v, want ErrFactDoesNotExist", err)
 	}
 
-	for _, request := range transport.requests {
-		if request.Path == pathPointsDelete(testUserID) {
-			t.Fatalf("deleted a point that does not exist")
-		}
+	if len(transport.requests) != 0 {
+		t.Fatalf("asked the server about an unstorable ID: %+v", transport.requests)
+	}
+}
+
+// An ID that cannot name a point still deletes successfully: there is nothing
+// behind it, so the request is a no-op. The server is not asked and no
+// collection is provisioned, because neither could hold such a fact.
+func TestRemoveFactByIDTreatsUnusableIDAsNoop(t *testing.T) {
+	t.Parallel()
+
+	repository, transport := newTestRepository(collectionHandlers(func(recordedRequest) (int, string) {
+		return http.StatusOK, `{"result":[],"status":"ok"}`
+	}))
+
+	if err := repository.RemoveFactByID(context.Background(), testUserID, "not-an-id"); err != nil {
+		t.Fatalf("err = %v, want success", err)
+	}
+
+	if len(transport.requests) != 0 {
+		t.Fatalf("asked the server about an unstorable ID: %+v", transport.requests)
 	}
 }
 

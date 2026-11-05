@@ -11,7 +11,8 @@ The digest is shaped per backend:
   or `u64`, and its parser does not check the version or variant bits.
 
 Both accept a full digest on lookup, so a `kv` fact resolves to the same Qdrant
-point.
+point. Which strings each backend can accept at all, and how a string it cannot
+accept is answered, is `id-validity-is-backend-local.md`.
 
 ## Why
 

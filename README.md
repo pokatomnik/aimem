@@ -331,6 +331,11 @@ Consequences worth knowing:
   Qdrant has different IDs (`4a44dc…` vs `4a44dc15-…`). Both backends accept
   either form on lookup: a full digest is reduced to its UUID form, so data
   carried over from the embedded store resolves to the same point.
+- **An ID this backend cannot store is "not found".** A pasted or hand-edited
+  string that is not a UUID or a digest cannot name a fact, so `GET` answers it
+  with `404` and `FACT_DOES_NOT_EXIST`, exactly like an ID nobody stored — never
+  with a `500`. The embedded backend applies the same rule to keys its index
+  rejects. `DELETE` is a no-op for the same input, like any other absent fact.
 - **Prefer full digests when moving data.** A 64-character digest is unambiguous
   and each backend maps it to its own form. A short prefix is only meaningful in
   the backend that printed it.
@@ -517,15 +522,15 @@ reply is `{"value":{"summary":"..."}}` — not a bare `{"summary":"..."}`.
 Errors come back as `{"error":"<CODE>","message":"..."}`; the status is part of
 the mapping:
 
-| Status | When                                                                                       |
-| ------ | ------------------------------------------------------------------------------------------ |
-| `400`  | Malformed request — bad JSON, a body failing validation, a short `query`.                  |
-| `401`  | Qdrant is selected and no valid token came with the request.                               |
-| `404`  | Unknown route, or a fact that does not exist (`GET` and `DELETE` alike).                   |
-| `409`  | The fact already exists (`ALREADY_HAS_FACT`).                                              |
-| `422`  | The embedding step produced no vector (`EMPTY_EMBEDDINGS`).                                |
-| `502`  | The summarization server answered with an error or with no choices.                        |
-| `500`  | Anything else, including a storage conversion error and a failure to compute an embedding. |
+| Status | When                                                                                                                         |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | Malformed request — bad JSON, a body failing validation, a short `query`, or a missing `{factID}` segment (`/api/v1/fact/`). |
+| `401`  | Qdrant is selected and no valid token came with the request.                                                                 |
+| `404`  | Unknown route, or a fact that does not exist — an unnameable ID and an unstored one alike (`GET`; `DELETE` is a no-op).      |
+| `409`  | The fact already exists (`ALREADY_HAS_FACT`).                                                                                |
+| `422`  | The embedding step produced no vector (`EMPTY_EMBEDDINGS`).                                                                  |
+| `502`  | The summarization server answered with an error or with no choices.                                                          |
+| `500`  | Anything else, including a storage conversion error and a failure to compute an embedding.                                   |
 
 `401` only happens with Qdrant. With the embedded backend the same endpoints
 answer anonymously, because there is one local operator and nothing to

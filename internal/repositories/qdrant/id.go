@@ -5,8 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
-
-	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 )
 
 const (
@@ -54,33 +52,44 @@ func formatUUID(digest string) string {
 // SHA-256 digest (the kv identifier, or one printed by an older dataset) is
 // accepted too and reduced the same way newPointID does it, so data carried over
 // from kv resolves to the same point.
+//
+// A failure here means the string cannot name a Qdrant point at all. It is a parse
+// error, deliberately carrying no domain sentinel: the read turns it into
+// apperrors.ErrFactDoesNotExist and the delete into a no-op, because a string that
+// cannot be stored denotes no fact. Wrapping apperrors.ErrDBConvertError instead
+// would report the caller's input as our stored data being malformed, and would
+// surface as a 500 on a request that deserves the same 404 as an unknown ID.
+//
+// This is about non-empty strings too: HTTP delivers only those of them (ogen
+// refuses an empty path parameter before any handler runs), while the MCP tools
+// can pass anything, including "", and rely on this check.
 func pointIDFromExternal(id string) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(id))
 
 	switch len(normalized) {
 	case uuidDashed:
 		if !isHexWithHyphens(normalized) {
-			return "", fmt.Errorf("%w: %q is not a UUID", apperrors.ErrDBConvertError, id)
+			return "", fmt.Errorf("%q is not a UUID", id)
 		}
 
 		return normalized, nil
 
 	case uuidLength:
 		if !isHex(normalized) {
-			return "", fmt.Errorf("%w: %q is not a UUID", apperrors.ErrDBConvertError, id)
+			return "", fmt.Errorf("%q is not a UUID", id)
 		}
 
 		return formatUUID(normalized), nil
 
 	case sha256HexLength:
 		if !isHex(normalized) {
-			return "", fmt.Errorf("%w: %q is not a SHA-256 digest", apperrors.ErrDBConvertError, id)
+			return "", fmt.Errorf("%q is not a SHA-256 digest", id)
 		}
 
 		return formatUUID(normalized), nil
 	}
 
-	return "", fmt.Errorf("%w: %q is neither a UUID nor a SHA-256 digest", apperrors.ErrDBConvertError, id)
+	return "", fmt.Errorf("%q is neither a UUID nor a SHA-256 digest", id)
 }
 
 func isHex(value string) bool {

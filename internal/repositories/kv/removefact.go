@@ -5,39 +5,38 @@ import (
 	"errors"
 
 	"github.com/gorse-io/xvec"
-	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 )
 
+// RemoveFactByID deletes one fact. Deleting a fact that is not stored succeeds:
+// DELETE is idempotent, so a client can retry it and gets the same answer as the
+// first call. Nothing in xvec distinguishes "removed just now" from "was not
+// there", and the caller has no use for the distinction.
+//
+// An ID the index cannot hold is a no-op too, and is answered before the
+// collection is opened: xvec rejects an empty, non-UTF-8 or oversized primary key
+// with a validation error, which would turn a guaranteed no-op into a 500.
 func (k *KV) RemoveFactByID(ctx context.Context, userID, factID string) error {
+	if !validFactID(factID) {
+		return nil
+	}
+
 	collection, err := k.getCollection(ctx)
 	if err != nil {
 		return err
 	}
 	defer collection.Close()
 
-	result, err := collection.Delete(ctx, []string{factID})
+	results, err := collection.Delete(ctx, []string{factID})
 	// xvec reports a missing key as a batch error carrying ErrNotFound, and puts
-	// the same cause into the per-key result. Both mean "no such fact".
-	if errors.Is(err, xvec.ErrNotFound) {
-		return apperrors.ErrFactDoesNotExist
-	}
-
-	if err != nil {
+	// the same cause into the per-key result. Both mean "nothing to delete".
+	if err != nil && !errors.Is(err, xvec.ErrNotFound) {
 		return err
 	}
 
-	for _, v := range result {
-		if errors.Is(v.Err, xvec.ErrNotFound) {
-			return apperrors.ErrFactDoesNotExist
+	for _, result := range results {
+		if result.Err != nil && !errors.Is(result.Err, xvec.ErrNotFound) {
+			return result.Err
 		}
-
-		if v.Err != nil {
-			return v.Err
-		}
-	}
-
-	if len(result) == 0 {
-		return apperrors.ErrFactDoesNotExist
 	}
 
 	return nil

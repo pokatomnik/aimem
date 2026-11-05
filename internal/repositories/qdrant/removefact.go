@@ -3,36 +3,27 @@ package qdrant
 import (
 	"context"
 	"net/http"
-
-	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 )
 
-// RemoveFactByID deletes one fact and reports an unknown ID as
-// apperrors.ErrFactDoesNotExist, the same way kv does.
+// RemoveFactByID deletes one fact. Deleting a fact that is not stored succeeds:
+// DELETE is idempotent, so a client can retry it and gets the same answer as the
+// first call. Qdrant's delete endpoint already answers that way, which is why the
+// existence check this method used to make is gone — it existed only to turn a
+// missing fact into an error.
 //
-// Only the caller's collection is touched, so an ID held by another user is not
-// found here and is reported as missing instead of being deleted.
+// Only the caller's collection is touched, so an ID held by another user deletes
+// nothing and is reported as success, exactly like an ID nobody stored.
 //
-// The delete endpoint succeeds whether or not the point was there, so the check
-// runs first — the same order kv uses, where Delete returns an error per missing
-// key.
+// An ID that cannot be mapped to a point is a no-op as well, and is answered
+// before the collection is provisioned: no collection could hold such a fact.
 func (q *Qdrant) RemoveFactByID(ctx context.Context, userID, factID string) error {
-	if err := q.ensureCollection(ctx, userID); err != nil {
-		return err
-	}
-
 	pointID, err := pointIDFromExternal(factID)
 	if err != nil {
-		return err
+		return nil
 	}
 
-	exists, err := q.pointExists(ctx, userID, pointID)
-	if err != nil {
+	if err := q.ensureCollection(ctx, userID); err != nil {
 		return err
-	}
-
-	if !exists {
-		return apperrors.ErrFactDoesNotExist
 	}
 
 	request := deletePointsRequest{Points: []string{pointID}}

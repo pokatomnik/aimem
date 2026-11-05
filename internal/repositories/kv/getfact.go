@@ -10,6 +10,10 @@ import (
 )
 
 func (k *KV) GetFactByID(ctx context.Context, userID, factID string) (fact.FactFullView, error) {
+	if !validFactID(factID) {
+		return fact.FactFullView{}, apperrors.ErrFactDoesNotExist
+	}
+
 	collection, err := k.getCollection(ctx)
 	if err != nil {
 		return fact.FactFullView{}, err

@@ -16,12 +16,19 @@ import (
 // is deliberate: a different user's fact should be indistinguishable from one
 // that was never stored, so the answer leaks nothing about what exists elsewhere.
 func (q *Qdrant) GetFactByID(ctx context.Context, userID, factID string) (fact.FactFullView, error) {
-	if err := q.ensureCollection(ctx, userID); err != nil {
-		return fact.FactFullView{}, err
-	}
-
+	// Qdrant accepts a point ID only as a UUID or a u64, so a string this package
+	// cannot map cannot name a point in any collection. That is a fact that does
+	// not exist, not a conversion failure: the caller may hold an ID minted while
+	// the embedded backend was selected, or a hand-edited URL. Answering "absent"
+	// keeps this indistinguishable from a foreign user's ID, which is how kv
+	// answers the same input. The check runs before the bootstrap because no
+	// collection is worth creating for an ID that cannot be stored.
 	pointID, err := pointIDFromExternal(factID)
 	if err != nil {
+		return fact.FactFullView{}, apperrors.ErrFactDoesNotExist
+	}
+
+	if err := q.ensureCollection(ctx, userID); err != nil {
 		return fact.FactFullView{}, err
 	}
 

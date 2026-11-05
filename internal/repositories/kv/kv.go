@@ -2,6 +2,7 @@ package kv
 
 import (
 	"context"
+	"unicode/utf8"
 
 	"github.com/gorse-io/xvec"
 )
@@ -59,6 +60,22 @@ func New(config config, dataPath string) *KV {
 		dataPath: dataPath,
 		schema:   schema,
 	}
+}
+
+// validFactID reports whether factID can be a primary key in the embedded store.
+//
+// xvec rejects an empty key, one longer than MaxPrimaryKeyBytes and one that is not
+// valid UTF-8, returning invalidArgument from Fetch and Delete alike. That error
+// would reach the caller as a 500 for input it chose itself, so the check runs
+// here, before the collection is opened. A string the index cannot hold cannot
+// name a fact: the read answers "no such fact" and the delete is a no-op, which is
+// what Qdrant does with an ID it cannot map.
+//
+// An empty ID never arrives over HTTP: ogen's parameter decoder rejects it before
+// any handler runs. The MCP tools take `id` from their arguments with no such gate,
+// so this is the check that keeps a tool call away from xvec's key validation.
+func validFactID(factID string) bool {
+	return factID != "" && utf8.ValidString(factID) && len(factID) <= xvec.MaxPrimaryKeyBytes
 }
 
 func (kv *KV) getCollection(ctx context.Context) (collection, error) {

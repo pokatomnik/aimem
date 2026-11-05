@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/gorse-io/xvec"
@@ -106,11 +107,11 @@ func TestGetFactByIDPresentFact(t *testing.T) {
 	}
 }
 
-// Removing a fact that is not stored must answer ErrFactDoesNotExist rather
-// than leaking xvec's batch error. The fake reproduces what xvec really does:
-// a non-empty result list, a per-key ErrNotFound, and a batch error carrying the
-// same cause. The batch error arrives first, so a check that only inspects the
-// result list still leaks it.
+// Removing a fact that is not stored is a no-op, not an error: DELETE is
+// idempotent and a client must be able to retry it. xvec reports the miss twice
+// over — as a batch error wrapping ErrNotFound and as the same cause in the
+// per-key result — and both mean "nothing to delete". The fake reproduces both
+// shapes, because a check that only looks at one of them would still leak.
 //
 // Every error wraps xvec.ErrNotFound the way the real ones do. Building them
 // with errors.New would only copy the message text, and errors.Is compares
@@ -124,10 +125,8 @@ func TestRemoveFactByIDMissingFact(t *testing.T) {
 		deleteErr: batch,
 	})
 
-	err := kv.RemoveFactByID(context.Background(), "", "absent")
-
-	if !errors.Is(err, apperrors.ErrFactDoesNotExist) {
-		t.Fatalf("want ErrFactDoesNotExist, got %v", err)
+	if err := kv.RemoveFactByID(context.Background(), "", "absent"); err != nil {
+		t.Fatalf("want success for an absent fact, got %v", err)
 	}
 }
 
@@ -140,10 +139,8 @@ func TestRemoveFactByIDMissingFactPerKeyOnly(t *testing.T) {
 		deleted: []xvec.WriteResult{{PrimaryKey: "absent", Err: cause}},
 	})
 
-	err := kv.RemoveFactByID(context.Background(), "", "absent")
-
-	if !errors.Is(err, apperrors.ErrFactDoesNotExist) {
-		t.Fatalf("want ErrFactDoesNotExist, got %v", err)
+	if err := kv.RemoveFactByID(context.Background(), "", "absent"); err != nil {
+		t.Fatalf("want success for an absent fact, got %v", err)
 	}
 }
 
@@ -195,5 +192,57 @@ func TestGetFactByIDWrongFieldType(t *testing.T) {
 
 	if !errors.Is(err, apperrors.ErrDBConvertError) {
 		t.Fatalf("want ErrDBConvertError, got %v", err)
+	}
+}
+
+// unusableIDs are strings xvec refuses as a primary key: an empty key, bytes that
+// are not valid UTF-8, and one longer than its limit. None of them can name a
+// stored fact. xvec answers each with invalidArgument, which would surface as a
+// 500 for input the caller chose, so the repository checks before it opens the
+// collection: the read calls it absent, the delete treats it as nothing to do.
+//
+// The empty ID never reaches here over HTTP — ogen rejects it while decoding the
+// path parameter — but the MCP tools pass `id` through unvalidated, so this is the
+// layer that has to answer it.
+func unusableIDs() []string {
+	return []string{
+		"",
+		string([]byte{0xff}),
+		strings.Repeat("a", xvec.MaxPrimaryKeyBytes+1),
+	}
+}
+
+func TestGetFactByIDRejectsUnusableID(t *testing.T) {
+	for _, id := range unusableIDs() {
+		kv := New(testConfig{}, "")
+		kv.open = func(context.Context) (collection, error) {
+			t.Fatalf("opened the collection for the unusable id %q", id)
+
+			return nil, nil
+		}
+
+		_, err := kv.GetFactByID(context.Background(), "", id)
+
+		if !errors.Is(err, apperrors.ErrFactDoesNotExist) {
+			t.Fatalf("GetFactByID(%q): want ErrFactDoesNotExist, got %v", id, err)
+		}
+	}
+}
+
+func TestRemoveFactByIDTreatsUnusableIDAsNoop(t *testing.T) {
+	for _, id := range unusableIDs() {
+		kv := New(testConfig{}, "")
+		kv.open = func(context.Context) (collection, error) {
+			t.Fatalf("opened the collection for the unusable id %q", id)
+
+			return nil, nil
+		}
+
+		// The same answer an absent fact gets: there is nothing to remove, so
+		// the call succeeds. Opening the store would only turn a guarantee into
+		// an error from xvec's key validation.
+		if err := kv.RemoveFactByID(context.Background(), "", id); err != nil {
+			t.Fatalf("RemoveFactByID(%q): want success, got %v", id, err)
+		}
 	}
 }
