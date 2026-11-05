@@ -4,13 +4,13 @@ import (
 	"context"
 
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
+	"github.com/pokatomnik/gomem/internal/entities/embeddings"
 	"github.com/pokatomnik/gomem/internal/entities/fact"
-	"github.com/pokatomnik/gomem/internal/entities/ollama"
 )
 
 type (
 	embedder interface {
-		GetEmbeddings(ctx context.Context, text string) (ollama.Embeddings, error)
+		GetEmbeddings(ctx context.Context, text string) (embeddings.Embeddings, error)
 	}
 
 	store interface {

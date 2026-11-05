@@ -10,7 +10,26 @@
     "mode": "debug",
     // For Delve, the program can be a package name
     "program": "./cmd/aimem",
-    "args": ["init"],
+    "args": ["web"],
+    "env": {
+      "HTTP_PROXY": "socks5h://127.0.0.1:1080",
+      "http_proxy": "socks5h://127.0.0.1:1080",
+      "https_proxy": "socks5h://127.0.0.1:1080",
+      "HTTPS_PROXY": "socks5h://127.0.0.1:1080",
+      "proxy_all": "socks5h://127.0.0.1:1080",
+      "PROXY_ALL": "socks5h://127.0.0.1:1080",
+
+      "LLM_HOST": "https://api.deepseek.com",
+      "LLM_API_KEY": "sk-a8d9aa57ef07447182228df3ae6d8a27",
+      "AIMEM_SUMMARIZATION_MODEL": "deepseek-flash",
+      "AIMEM_TOP_K": "5",
+      "AIMEM_SIMILARITY_THRESHOLD": "0.5",
+      "AIMEM_DIMENSIONS": "768",
+      "AIMEM_WEB_HTTP_HOST": "127.0.0.1:8888",
+      "AIMEM_QDRANT_HOST": "https://b975c6fb-4822-4fab-9c71-ab3028d980b3.eu-central-1-0.aws.cloud.qdrant.io",
+      "AIMEM_QDRANT_API_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwic3ViamVjdCI6ImFwaS1rZXk6NzE1MjIxODItNGFhNi00NmEwLTk1MWEtMjRiYTBjN2JmZDdlIn0.mDpxbHM6sukEXfnAaUSYGIwLS05ZpnND_9s7gVQMPVY",
+      "AIMEM_USERS_JSON": "[{\"id\":\"pokatomnik\",\"tokens\":[\"57aa8cba-0ba5-47c1-8a96-9791e9576241\"]}]",
+    },
     // "buildFlags": [],
   },
 ]

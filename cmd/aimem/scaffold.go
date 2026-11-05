@@ -9,7 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	aOllamaPackage "github.com/pokatomnik/gomem/internal/adapters/ollama"
+	aEmbedderPackage "github.com/pokatomnik/gomem/internal/adapters/embeder"
+	aLLMPackage "github.com/pokatomnik/gomem/internal/adapters/llm"
 	aMCPPackage "github.com/pokatomnik/gomem/internal/adapters/servers/mcp"
 	cmdRootPackage "github.com/pokatomnik/gomem/internal/controllers/cli/root"
 	cmdWebCLIPackage "github.com/pokatomnik/gomem/internal/controllers/cli/web"
@@ -51,16 +52,22 @@ func scaffold(ctx context.Context) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	aOllama := aOllamaPackage.New(client, cfg)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
 
-	rec := ucRecallPackage.New(aOllama, embeddedDB, cfg)
+	embedder := aEmbedderPackage.New(path.Join(homeDir, ".aimem", "models", "gemma"))
+	llm := aLLMPackage.New(cfg)
+
+	rec := ucRecallPackage.New(embedder, embeddedDB, cfg)
 	fac := ucGetFactPackage.New(embeddedDB)
-	rem := ucRememberPackage.New(aOllama, embeddedDB)
+	rem := ucRememberPackage.New(embedder, llm, embeddedDB)
 	del := ucRemoveFactPackage.New(embeddedDB)
 	if cfg.RequireAuth() {
-		rec = ucRecallPackage.New(aOllama, qdrantDB, cfg)
+		rec = ucRecallPackage.New(embedder, qdrantDB, cfg)
 		fac = ucGetFactPackage.New(qdrantDB)
-		rem = ucRememberPackage.New(aOllama, qdrantDB)
+		rem = ucRememberPackage.New(embedder, llm, qdrantDB)
 		del = ucRemoveFactPackage.New(qdrantDB)
 	}
 

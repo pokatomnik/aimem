@@ -1,4 +1,4 @@
-package ollama
+package embeddings
 
 type (
 	// Batched Embeddings response

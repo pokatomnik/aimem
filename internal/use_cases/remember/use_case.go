@@ -4,12 +4,15 @@ import (
 	"context"
 
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
-	"github.com/pokatomnik/gomem/internal/entities/ollama"
+	"github.com/pokatomnik/gomem/internal/entities/embeddings"
 )
 
 type (
-	ai interface {
-		GetEmbeddings(ctx context.Context, text string) (ollama.Embeddings, error)
+	embedder interface {
+		GetEmbeddings(ctx context.Context, text string) (embeddings.Embeddings, error)
+	}
+
+	summarizer interface {
 		Summarize(ctx context.Context, text string) (string, error)
 	}
 
@@ -18,13 +21,18 @@ type (
 	}
 
 	Remember struct {
-		ai ai
-		st store
+		embedder   embedder
+		summarizer summarizer
+		st         store
 	}
 )
 
-func New(e ai, s store) *Remember {
-	return &Remember{e, s}
+func New(embedder embedder, summarizer summarizer, s store) *Remember {
+	return &Remember{
+		embedder:   embedder,
+		summarizer: summarizer,
+		st:         s,
+	}
 }
 
 func (r *Remember) Remember(ctx context.Context, userID string, fact string) (string, error) {

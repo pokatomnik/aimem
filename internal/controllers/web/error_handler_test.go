@@ -54,12 +54,6 @@ func TestMapDomainError(t *testing.T) {
 			wantCode:   server.ErrorCodeEMPTYEMBEDDINGS,
 		},
 		{
-			name:       "cannot get models",
-			err:        apperrors.ErrCannotGetModels,
-			wantStatus: http.StatusBadGateway,
-			wantCode:   server.ErrorCodeCANNOTGETMODELS,
-		},
-		{
 			name:       "get embeddings",
 			err:        apperrors.ErrGetEmbeddings,
 			wantStatus: http.StatusBadGateway,
@@ -76,6 +70,12 @@ func TestMapDomainError(t *testing.T) {
 			err:        apperrors.ErrUserNotFound,
 			wantStatus: http.StatusUnauthorized,
 			wantCode:   server.ErrorCodeUNAUTHORIZED,
+		},
+		{
+			name:       "no users configured is a server fault",
+			err:        apperrors.ErrNoUsersConfigured,
+			wantStatus: http.StatusInternalServerError,
+			wantCode:   server.ErrorCodeINTERNALERROR,
 		},
 		{
 			name: "a rejected token keeps its status through the wrapper",
@@ -138,28 +138,36 @@ func TestMapDomainErrorMatchesWrappedErrors(t *testing.T) {
 	}
 }
 
-// Every error declared in apperrors must appear in the mapping. A domain error
-// with no case falls through to 500 INTERNAL_ERROR, which hides a caller mistake
-// behind a server fault.
+// Every error declared in apperrors must have a row here stating the response it
+// deserves, so adding one to the package without deciding how it surfaces fails
+// loudly: a domain error with no case falls through to the default and reports an
+// unmapped failure.
 func TestEveryDomainErrorIsMapped(t *testing.T) {
-	domainErrors := map[string]error{
-		"ErrDBConvertError":  apperrors.ErrDBConvertError,
-		"ErrAlreadyHasFact":  apperrors.ErrAlreadyHasFact,
-		"ErrCannotGetModels": apperrors.ErrCannotGetModels,
-		"ErrGetEmbeddings":   apperrors.ErrGetEmbeddings,
-		"ErrSummarize":       apperrors.ErrSummarize,
-		"ErrEmbeddingsQuantityNotEqualToFactsQuantity": apperrors.ErrEmbeddingsQuantityNotEqualToFactsQuantity,
-		"ErrEmptyEmbeddings":                           apperrors.ErrEmptyEmbeddings,
-		"ErrFactDoesNotExist":                          apperrors.ErrFactDoesNotExist,
-		"ErrUserNotFound":                              apperrors.ErrUserNotFound,
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantCode   server.ErrorCode
+	}{
+		{"ErrDBConvertError", apperrors.ErrDBConvertError, http.StatusInternalServerError, server.ErrorCodeDBCONVERTERROR},
+		{"ErrAlreadyHasFact", apperrors.ErrAlreadyHasFact, http.StatusConflict, server.ErrorCodeALREADYHASFACT},
+		{"ErrGetEmbeddings", apperrors.ErrGetEmbeddings, http.StatusBadGateway, server.ErrorCodeCANNOTGETMODELS},
+		{"ErrSummarize", apperrors.ErrSummarize, http.StatusBadGateway, server.ErrorCodeCANNOTGETMODELS},
+		{"ErrEmbeddingsQuantityNotEqualToFactsQuantity", apperrors.ErrEmbeddingsQuantityNotEqualToFactsQuantity, http.StatusUnprocessableEntity, server.ErrorCodeEMPTYEMBEDDINGS},
+		{"ErrEmptyEmbeddings", apperrors.ErrEmptyEmbeddings, http.StatusUnprocessableEntity, server.ErrorCodeEMPTYEMBEDDINGS},
+		{"ErrFactDoesNotExist", apperrors.ErrFactDoesNotExist, http.StatusNotFound, server.ErrorCodeFACTDOESNOTEXIST},
+		{"ErrUserNotFound", apperrors.ErrUserNotFound, http.StatusUnauthorized, server.ErrorCodeUNAUTHORIZED},
+		// A startup failure, so it never surfaces over HTTP; if it does, it is a
+		// server misconfiguration and the honest generic 500 is still right.
+		{"ErrNoUsersConfigured", apperrors.ErrNoUsersConfigured, http.StatusInternalServerError, server.ErrorCodeINTERNALERROR},
 	}
 
-	for name, err := range domainErrors {
-		t.Run(name, func(t *testing.T) {
-			status, code := mapDomainError(err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status, code := mapDomainError(tt.err)
 
-			if status == http.StatusInternalServerError && code == server.ErrorCodeINTERNALERROR {
-				t.Errorf("%s falls through to the default branch", name)
+			if status != tt.wantStatus || code != tt.wantCode {
+				t.Errorf("mapDomainError(%s) = %d %q, want %d %q", tt.name, status, code, tt.wantStatus, tt.wantCode)
 			}
 		})
 	}

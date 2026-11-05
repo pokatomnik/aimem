@@ -3,17 +3,17 @@ package remember
 import (
 	"context"
 
-	"github.com/pokatomnik/gomem/internal/entities/ollama"
+	"github.com/pokatomnik/gomem/internal/entities/embeddings"
 	"golang.org/x/sync/errgroup"
 )
 
-func (r *Remember) getEmbeddingsAndSummary(ctx context.Context, fact string) (string, ollama.Embeddings, error) {
+func (r *Remember) getEmbeddingsAndSummary(ctx context.Context, fact string) (string, embeddings.Embeddings, error) {
 	eg, ctx := errgroup.WithContext(ctx)
 	sCh := make(chan string, 1)
-	eCh := make(chan ollama.Embeddings, 1)
+	eCh := make(chan embeddings.Embeddings, 1)
 
 	eg.Go(func() error {
-		summary, err := r.ai.Summarize(ctx, fact)
+		summary, err := r.summarizer.Summarize(ctx, fact)
 		if err != nil {
 			return err
 		}
@@ -24,7 +24,7 @@ func (r *Remember) getEmbeddingsAndSummary(ctx context.Context, fact string) (st
 	})
 
 	eg.Go(func() error {
-		emb, err := r.ai.GetEmbeddings(ctx, fact)
+		emb, err := r.embedder.GetEmbeddings(ctx, fact)
 		if err != nil {
 			return err
 		}
@@ -36,7 +36,7 @@ func (r *Remember) getEmbeddingsAndSummary(ctx context.Context, fact string) (st
 
 	err := eg.Wait()
 	if err != nil {
-		return "", ollama.Embeddings{}, err
+		return "", embeddings.Embeddings{}, err
 	}
 
 	return <-sCh, <-eCh, nil

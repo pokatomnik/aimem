@@ -7,10 +7,9 @@ var (
 	ErrDBConvertError = errors.New("db convert error")
 	ErrAlreadyHasFact = errors.New("db already has fact")
 
-	// Ollama client errors
-	ErrCannotGetModels = errors.New("ollama cannot get models")
-	ErrGetEmbeddings   = errors.New("ollama cannot get embeddings")
-	ErrSummarize       = errors.New("ollama cannot summarize")
+	// LLM client errors
+	ErrGetEmbeddings = errors.New("cannot get embeddings")
+	ErrSummarize     = errors.New("cannot summarize")
 
 	// Business logic errors
 	ErrEmbeddingsQuantityNotEqualToFactsQuantity = errors.New("embeddings quantity does not equal to facts quantity")

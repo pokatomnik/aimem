@@ -13,7 +13,6 @@ func TestRequiredConfigFieldsUseSupportedEnvTags(t *testing.T) {
 		field string
 		tag   string
 	}{
-		{field: "EmbeddingModel", tag: "AIMEM_EMBEDDING_MODEL,required"},
 		{field: "SummarizationModel", tag: "AIMEM_SUMMARIZATION_MODEL,required"},
 		{field: "Dimensions", tag: "AIMEM_DIMENSIONS,required"},
 	} {

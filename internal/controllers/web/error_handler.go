@@ -39,12 +39,16 @@ func mapDomainError(err error) (int, server.ErrorCode) {
 	case errors.Is(err, apperrors.ErrEmptyEmbeddings),
 		errors.Is(err, apperrors.ErrEmbeddingsQuantityNotEqualToFactsQuantity):
 		return http.StatusUnprocessableEntity, server.ErrorCodeEMPTYEMBEDDINGS
-	case errors.Is(err, apperrors.ErrCannotGetModels),
-		errors.Is(err, apperrors.ErrGetEmbeddings),
+	case errors.Is(err, apperrors.ErrGetEmbeddings),
 		errors.Is(err, apperrors.ErrSummarize):
 		return http.StatusBadGateway, server.ErrorCodeCANNOTGETMODELS
 	case errors.Is(err, apperrors.ErrUserNotFound):
 		return http.StatusUnauthorized, server.ErrorCodeUNAUTHORIZED
+	case errors.Is(err, apperrors.ErrNoUsersConfigured):
+		// Returned only while starting up, so it should never reach HTTP. If it
+		// ever does, the server refused to start for want of a configured user:
+		// a misconfiguration on our side, never the caller's fault.
+		return http.StatusInternalServerError, server.ErrorCodeINTERNALERROR
 	}
 
 	return http.StatusInternalServerError, server.ErrorCodeINTERNALERROR

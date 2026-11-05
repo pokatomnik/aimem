@@ -148,12 +148,6 @@ func TestRequestErrorHandlerDomainError(t *testing.T) {
 			wantCode:   server.ErrorCodeEMPTYEMBEDDINGS,
 		},
 		{
-			name:       "cannot get models",
-			err:        apperrors.ErrCannotGetModels,
-			wantStatus: http.StatusBadGateway,
-			wantCode:   server.ErrorCodeCANNOTGETMODELS,
-		},
-		{
 			name:       "get embeddings",
 			err:        apperrors.ErrGetEmbeddings,
 			wantStatus: http.StatusBadGateway,
@@ -164,6 +158,12 @@ func TestRequestErrorHandlerDomainError(t *testing.T) {
 			err:        apperrors.ErrSummarize,
 			wantStatus: http.StatusBadGateway,
 			wantCode:   server.ErrorCodeCANNOTGETMODELS,
+		},
+		{
+			name:       "no users configured is a server fault",
+			err:        apperrors.ErrNoUsersConfigured,
+			wantStatus: http.StatusInternalServerError,
+			wantCode:   server.ErrorCodeINTERNALERROR,
 		},
 	}
 

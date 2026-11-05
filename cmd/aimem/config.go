@@ -3,8 +3,8 @@ package main
 import "github.com/caarlos0/env"
 
 type Config struct {
-	OllamaHost          string  `env:"AIMEM_OLLAMA_HOST" envDefault:"http://127.0.0.1:11434"`
-	EmbeddingModel      string  `env:"AIMEM_EMBEDDING_MODEL,required"`
+	LLMHost             string  `env:"LLM_HOST" envDefault:"http://127.0.0.1:11434/v1"`
+	LLMAPIKey           string  `env:"LLM_API_KEY"`
 	SummarizationModel  string  `env:"AIMEM_SUMMARIZATION_MODEL,required"`
 	TopK                int     `env:"AIMEM_TOP_K" envDefault:"5"`
 	SimilarityThreshold float32 `env:"AIMEM_SIMILARITY_THRESHOLD" envDefault:"0.7"`
@@ -28,12 +28,12 @@ func (c *Config) GetDimensions() uint32 {
 	return uint32(c.Dimensions)
 }
 
-func (c *Config) GetOllamaHost() string {
-	return c.OllamaHost
+func (c *Config) GetLLMHost() string {
+	return c.LLMHost
 }
 
-func (c *Config) GetEmbeddingModel() string {
-	return c.EmbeddingModel
+func (c *Config) GetLLMAPIKey() string {
+	return c.LLMAPIKey
 }
 
 func (c *Config) GetSummarizationModel() string {
