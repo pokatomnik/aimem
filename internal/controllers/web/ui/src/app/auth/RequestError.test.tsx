@@ -63,7 +63,7 @@ describe("RequestError", () => {
   });
 
   it("does not offer Logout for a failure that is not about credentials", () => {
-    // Ollama being down is answered by Retry: a logout button there would send
+    // A failed model API is answered by Retry: a logout button there would send
     // the user to the token form to fix something the token did not cause.
     renderFailedSession(new ApiError("NETWORK_ERROR"));
 

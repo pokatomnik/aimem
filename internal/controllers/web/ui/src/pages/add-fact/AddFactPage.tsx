@@ -24,7 +24,7 @@ export const AddFactPage = ({
     <header className={styles.header}>
       <h1 className={styles.title}>New fact</h1>
       <p className={styles.subtitle}>
-        The text will be summarized by the model and added to the local index.
+        The text will be summarized and added to memory.
       </p>
     </header>
 

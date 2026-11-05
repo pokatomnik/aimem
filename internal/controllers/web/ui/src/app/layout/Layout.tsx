@@ -39,6 +39,6 @@ export const Layout = ({
       {children}
     </main>
 
-    <footer className={styles.footer}>local memory · Ollama · HNSW</footer>
+    <footer className={styles.footer}>memory · embeddings · HNSW</footer>
   </div>
 );

@@ -26,8 +26,7 @@ export const HomePage = ({
         Your memory, <span className={styles.accent}>by meaning</span>
       </h1>
       <p className={styles.subtitle}>
-        Ask in your own words — aimem finds the nearest facts in a local vector
-        index.
+        Ask in your own words — aimem finds the nearest facts by meaning.
       </p>
       <div className={styles.formWrap}>
         <SearchForm variant="hero" autoFocus onSearch={onSearch} />

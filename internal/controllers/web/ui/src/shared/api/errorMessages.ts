@@ -15,8 +15,8 @@ export type ErrorCode = ContractErrorCode | LocalErrorCode;
 export const ERROR_MESSAGES = {
   DB_CONVERT_ERROR: "Storage error. Please try again",
   ALREADY_HAS_FACT: "This fact is already in memory",
-  CANNOT_GET_MODELS: "Cannot reach Ollama — make sure it is running",
-  GET_EMBEDDINGS: "Failed to compute embeddings — make sure Ollama is running",
+  CANNOT_GET_MODELS: "Cannot reach the model API — check its configuration",
+  GET_EMBEDDINGS: "Failed to compute embeddings. Try again",
   SUMMARIZE: "Failed to summarize the fact",
   EMBEDDINGS_QUANTITY_NOT_EQUAL_TO_FACTS_QUANTITY:
     "Storage returned inconsistent data. Try again",

@@ -17,8 +17,8 @@ export const isUnauthorized = (error: unknown): boolean =>
  * already showing.
  *
  * Only a rejected credential (`UNAUTHORIZED`) earns the button. Every other
- * failure — Ollama down, a storage error — is answered by "Retry"; offering a
- * logout there would suggest the token is at fault when it is not.
+ * failure — the model API being down, a storage error — is answered by "Retry";
+ * offering a logout there would suggest the token is at fault when it is not.
  *
  * The cache is cleared on the way out because everything in it was fetched under
  * the identity being dropped: after a fresh token is entered, an answer cached

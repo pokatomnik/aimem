@@ -87,7 +87,7 @@ export const TokenGate = ({ onSave }: TokenGateProps): ReactNode => {
         </div>
       </main>
 
-      <footer className={styles.footer}>local memory · Ollama · HNSW</footer>
+      <footer className={styles.footer}>memory · embeddings · HNSW</footer>
     </div>
   );
 };
