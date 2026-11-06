@@ -3,18 +3,17 @@ package embeder
 import (
 	"sync"
 
-	"github.com/townsendmerino/goinfer/embeddinggemma2"
+	"github.com/pokatomnik/gomem/internal/adapters/embeder/engine"
 )
 
 type (
 	Embedder struct {
-		modelDir    string
-		encoder     *embeddinggemma2.Encoder
+		encoder     *engine.Encoder
 		initialized bool
 		mx          sync.Mutex
 	}
 )
 
-func New(modelDir string) *Embedder {
-	return &Embedder{modelDir: modelDir}
+func New() *Embedder {
+	return &Embedder{}
 }

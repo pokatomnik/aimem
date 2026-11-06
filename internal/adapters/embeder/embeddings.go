@@ -12,7 +12,11 @@ func (e *Embedder) GetEmbeddings(_ context.Context, text string) (embeddings.Emb
 		return embeddings.Embeddings{}, err
 	}
 
-	vec, _, err := enc.EmbedText(text, "")
+	vec, err := enc.EmbedText(text)
+	if err != nil {
+		return nil, err
+	}
+
 	vecs := [][]float32{vec}
 
 	return embeddings.Embeddings(vecs), err

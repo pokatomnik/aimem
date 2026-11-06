@@ -1,22 +1,16 @@
 package embeder
 
-import (
-	"github.com/townsendmerino/goinfer/embeddinggemma2"
-)
+import "github.com/pokatomnik/gomem/internal/adapters/embeder/engine"
 
-func (e *Embedder) getEncoder() (*embeddinggemma2.Encoder, error) {
+func (e *Embedder) getEncoder() (*engine.Encoder, error) {
 	e.mx.Lock()
 	defer e.mx.Unlock()
-
-	if err := ensureModel(e.modelDir); err != nil {
-		return nil, err
-	}
 
 	if e.initialized {
 		return e.encoder, nil
 	}
 
-	encoder, err := embeddinggemma2.LoadEncoder(e.modelDir)
+	encoder, err := engine.LoadEncoder(gemmaDir, gemmaDirName)
 	if err != nil {
 		return nil, err
 	}

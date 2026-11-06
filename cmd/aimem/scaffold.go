@@ -52,12 +52,7 @@ func scaffold(ctx context.Context) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-
-	embedder := aEmbedderPackage.New(path.Join(homeDir, ".aimem", "models", "gemma"))
+	embedder := aEmbedderPackage.New()
 	llm := aLLMPackage.New(cfg)
 
 	rec := ucRecallPackage.New(embedder, embeddedDB, cfg)
