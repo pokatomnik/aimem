@@ -1,6 +1,6 @@
 ---
 name: prompt-docs-keeper
-description: Audit aimem's prompts and documentation against the real code, report bugs before touching any wording, and then update INSTRUCTIONS.md, SUMMARIZATION_SYSTEM.md, AGENTS.md, README.md and the matching file in decisions/. Use when prompts, tool descriptions, docs, or config docs need updating, or when asked to check that texts still match the code.
+description: Audit aimem's prompts and documentation against the real code, report bugs before touching any wording, and then update INSTRUCTIONS.md, SUMMARIZATION_SYSTEM.md, AGENTS.md, README.md and decisions/. Use when prompts, tool descriptions, docs, or config docs need updating, or when asked to check that texts still match the code.
 ---
 
 # Prompt & Docs Keeper
@@ -15,8 +15,8 @@ The user writes the code by hand. Your job is to audit and to phrase things, not
 2. **Report findings** — bugs first, then stale text.
 3. **Stop on bugs.** Wait for the user to fix them.
 4. **Update texts** only for behavior that actually works.
-5. **Update `AGENTS.md`** if structure or commands changed, and the matching
-   record in `decisions/` if a decision behind them changed.
+5. **Update `AGENTS.md`** if structure or commands changed, and add a record to
+   `decisions/` if a decision behind them changed.
 6. **Run checks** — `go vet ./...`, `gofmt -l .`, `go test ./...`.
 7. **If the user corrects you**, apply the fix and record the correction as
    described at the end of this file, in the same turn.
@@ -117,8 +117,8 @@ Check these before trusting any sentence in the docs. Each one has already been 
 ### `decisions/`
 
 - One topic per file, named after the topic, under 100 lines. File names are the index, so a name that needs opening is a bug.
-- Each record is `## Decision` then `## Why`, in English. The `Why` names the alternative that was rejected; a record the code contradicts is a bug in one of the two, not a style note.
-- **Rewrite, do not append.** When the rule changes, replace it — git keeps the history — and check that no other record now contradicts it.
+- Each record is `## Decision` then `## Why`, in English. The `Why` names the alternative that was rejected; a current record the code contradicts is a bug in one of the two, not a style note.
+- **Append, do not rewrite.** The directory is the history of decisions, not their present state: a superseded record stays exactly as it was written. When a decision changes, add a new file under a new topic name, state the new rule there, and link to the record it replaces. Rewriting the old one would erase the fact that the earlier choice was ever made, which is what the history exists for.
 
 ### `README.md`
 
@@ -134,8 +134,8 @@ Fix the mistake, then write the rule down where the next run will read it:
 
 - a rule about how to audit or how to phrase things → the section it governs in
   this file, one line, with the reason in a clause;
-- a decision about the project → the matching file in `decisions/`, rewritten
-  rather than appended to.
+- a decision about the project → a new file in `decisions/` that states it and
+  links to the record it supersedes, never an edit of the old one.
 
 Rewrite the section instead of appending a story: every run reads this whole file,
 so it has to stay instructions, and git already keeps the history. Never record a

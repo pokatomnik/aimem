@@ -4,10 +4,11 @@
 facts, embeds them locally, and retrieves the most relevant facts for a question
 by meaning, using cosine similarity.
 
-Embeddings are computed in-process by EmbeddingGemma 2: the weights are
-downloaded once into `~/.aimem/models/gemma` on first use and then reused
-offline. No embedding service is involved. Short summaries come from any server
-that speaks the chat completions API, addressed by `AIMEM_LLM_HOST`.
+Embeddings are computed in-process by EmbeddingGemma 2: the checkpoint is
+compiled into the binary, so no model file is downloaded, unpacked or read from
+disk at run time, and no embedding service is involved. Short summaries come
+from any server that speaks the chat completions API, addressed by
+`AIMEM_LLM_HOST`.
 
 Two storage backends are available; `AIMEM_QDRANT_HOST` chooses between them:
 
@@ -17,8 +18,8 @@ Two storage backends are available; `AIMEM_QDRANT_HOST` chooses between them:
   machine. Set `AIMEM_QDRANT_HOST` to switch; see
   [Start the vector database](#4-start-the-vector-database-qdrant).
 
-With the embedded backend and a local model server, the only traffic that leaves
-the machine is the one-time model download.
+With the embedded backend and a local model server, the binary makes no outbound
+request at all: the model it needs is already inside it.
 
 ## Features
 
@@ -35,10 +36,13 @@ the machine is the one-time model download.
 - [Node.js](https://nodejs.org) and `npm`, because the web UI is built from
   `internal/controllers/web/ui` and embedded into the binary with `go:embed`.
   `make build` and `make test` both run `npm ci` and `vite build` first, so a
-  bare `go build ./...` on a fresh clone fails until `make ui-build` has run.
-- Network access for the first embedding: the model weights are fetched from
-  HuggingFace into `~/.aimem/models/gemma` and reused offline afterwards. The
-  model is fixed; there is no setting to choose another one.
+  bare `go build ./...` on a fresh clone fails until `make ui-build` has run and
+  the embedding checkpoint has been generated.
+- Network access once, while building: `make generate` fetches the embedding
+  checkpoint (about 1.4 GB) from HuggingFace into
+  `internal/adapters/embeder/gemma`, where `go:embed` picks it up. Nothing is
+  downloaded at run time. The model is fixed; there is no setting to choose
+  another one.
 - A server that speaks the chat completions API, reachable over HTTP — a local
   runtime or a hosted provider. This is the only network dependency at request
   time.
@@ -59,7 +63,12 @@ make install   # builds and copies the binary to GOBIN (or GOPATH/bin)
 
 The build disables CGO (`CGO_ENABLED=0`) and strips debug information and build
 metadata (`-trimpath -buildvcs=false -ldflags="-s -w -buildid="`) to keep the
-binary as small as possible. The resulting binary is self-contained.
+binary as small as possible. The resulting binary is self-contained: the
+embedding checkpoint is compiled into it.
+
+The checkpoint is not in git. On a fresh clone, run `make generate` once first —
+it downloads the four files into `internal/adapters/embeder/gemma` — otherwise
+the compiler stops with `pattern gemma: no matching files found`.
 
 `make install` uses `$(go env GOBIN)` if it is set, otherwise
 `$(go env GOPATH)/bin`. You can override the destination explicitly:
@@ -328,9 +337,11 @@ one and is accepted as one, which is all Qdrant requires.
 Consequences worth knowing:
 
 - **IDs differ between backends.** The same fact stored in `~/.aimem` and in
-  Qdrant has different IDs (`4a44dc…` vs `4a44dc15-…`). Both backends accept
-  either form on lookup: a full digest is reduced to its UUID form, so data
-  carried over from the embedded store resolves to the same point.
+  Qdrant has different IDs (`4a44dc…` vs `4a44dc15-…`). Qdrant also accepts a
+  full digest on lookup and reduces it to its UUID form, which is what makes
+  data carried over from the embedded store resolve to the same point. The
+  embedded store only matches the digest it wrote, so a UUID printed by Qdrant
+  names no fact there.
 - **An ID this backend cannot store is "not found".** A pasted or hand-edited
   string that is not a UUID or a digest cannot name a fact, so `GET` answers it
   with `404` and `FACT_DOES_NOT_EXIST`, exactly like an ID nobody stored — never
@@ -516,7 +527,7 @@ Every success body is wrapped in `value`, including `POST /api/v1/fact`, whose
 reply is `{"value":{"summary":"..."}}` — not a bare `{"summary":"..."}`.
 
 `search` runs the same semantic lookup as `recall`, so `AIMEM_TOP_K` and
-`AIMEM_SIMILARITY_THRESHOLD` apply and each item carries `id`, `created_at`, and
+`AIMEM_SIMILARITY_THRESHOLD` apply and each item carries `id`, `createdAt`, and
 `summary` — never the full text; use `GET /api/v1/fact/{factID}` for that.
 
 Errors come back as `{"error":"<CODE>","message":"..."}`; the status is part of
@@ -541,11 +552,18 @@ Any path under `/api/` is answered as JSON, so a version typo like
 prefixes are matched in this order: `/mcp`, then `/api/`, then everything else,
 which is the UI.
 
-Authentication is declared once for the whole API: every operation inherits the
-`bearerAuth` requirement from the document root, so `401` applies to all four
-routes. It is checked before the body is decoded, which is why a request with no
-token never reaches validation and cannot distinguish "bad JSON" from "no
-credentials" — it simply gets `401`.
+Authentication is declared once for the whole API, at the document root, and the
+requirement is deliberately satisfiable without a header: it lists `bearerAuth`
+and an empty alternative. Whether a token is mandatory is a property of the
+storage backend rather than of the contract, so the protocol layer never rejects
+a request for a missing header and the handlers do that work instead.
+
+The two failures are therefore caught at different points. A token that is
+present but not recognised is refused while the request is authenticated, before
+the body is decoded, so it gets `401` and nothing else. A request with no token
+at all passes that stage, is validated and decoded like any other, and is refused
+by the handler — so a malformed body answers `400` first, and only a well-formed
+one reaches the `401`.
 
 ### Bulk insertion
 
@@ -569,14 +587,17 @@ batch is therefore safe: the duplicates are rejected and the rest go through.
 ## Data location
 
 With the **embedded** backend all data is stored in `~/.aimem`: the xvec
-collection with embeddings and metadata, plus the embedding model under
-`~/.aimem/models/gemma`. Delete the whole directory to start from scratch — the
-model is downloaded again on the next embedding.
+collection with embeddings and metadata. Delete the whole directory to start
+from scratch; nothing is read from there that a fresh start would need.
 
-With **Qdrant** the facts live in the collections described above and nothing is
-written to `~/.aimem` except that model directory, which both backends share.
-To reset the facts, drop the collections; `docker compose down -v` wipes the
-bundled instance entirely.
+With **Qdrant** the facts live in the collections described above. Nothing is
+written to `~/.aimem` at all — the embedded store never opens its path, so the
+directory does not appear unless the embedded backend has been used. To reset the
+facts, drop the collections; `docker compose down -v` wipes the bundled instance
+entirely.
+
+The embedding model is in neither: it is compiled into the binary, so there is no
+model directory to keep, delete or restore.
 
 There is no export file. Facts are readable through the API, the UI and the MCP
 tools; a bulk export was removed and is not part of the current behaviour.
@@ -589,7 +610,8 @@ Stored records are immutable on both backends — see
 ```sh
 make build        # ui-build, then build/aimem for the current platform
 make test         # ui-build, then go test ./...
-make generate     # regenerate the ogen code in internal/controllers/web/server
+make generate     # fetch the embedding checkpoint if missing, then regenerate
+                  # the ogen code in internal/controllers/web/server
 make clean        # remove build/ and the UI dist
 
 make ui-install   # npm ci (only when package.json or the lockfile changes)

@@ -46,14 +46,17 @@ Code is layered, with dependencies pointing inward:
 - `internal/repositories/qdrant/` — the same storage contract backed by Qdrant over
   HTTP; keeps the `kv` schema and satisfies the use cases' interfaces.
 - `internal/adapters/` — outbound integrations (`embeder`: the in-process
-  embedding model, `llm`: the chat completions client) and inbound input
+  embedding model, with the vendored EmbeddingGemma 2 text forward pass in
+  `embeder/engine`; `llm`: the chat completions client) and inbound input
   (`input`), plus the MCP server-side adapter (`servers/mcp`: the server, its
   tools, and the streamable-HTTP transport that exposes it).
 - `internal/shared/` — cross-cutting helpers.
 
-Runtime data lives in `~/.aimem` for the embedded backend. Runtime settings come
-from `AIMEM_*` process environment variables; there is no config file, and the
-Qdrant user list travels in `AIMEM_USERS_JSON` like every other setting.
+Runtime data lives in `~/.aimem` for the embedded backend. The embedding model
+is not data on disk: it is compiled into the binary from the checkpoint in
+`internal/adapters/embeder/gemma`. Runtime settings come from `AIMEM_*` process
+environment variables; there is no config file, and the Qdrant user list travels
+in `AIMEM_USERS_JSON` like every other setting.
 
 ## Architecture Overview
 
@@ -61,9 +64,11 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
 
 ## Accepted Decisions
 
-`decisions/` holds the decisions this project has already taken, one topic per
-file, each with the rule and the reason behind it. The records are binding: a rule
-written there outranks your instinct, and contradicting one is a decision to
+`decisions/` holds the decisions this project has taken, one topic per file, each
+with the rule and the reason behind it — and it is a history, not a snapshot. The
+newest record on a topic is the binding one; an earlier record stays as it was
+written, so read the names and follow the supersession links instead of assuming
+the first file you open is current. Contradicting the newest rule is a decision to
 revisit with the user, not an improvement to make on the way past.
 
 Search that directory before changing how a layer meets another, how a field is
@@ -95,9 +100,10 @@ or re-litigate:
   ```
 
 - **At most 100 lines.** A decision that needs more is more than one decision.
-- **Rewrite, do not append.** When a decision changes, replace its text and let
-  git keep the history. A superseded paragraph is exactly the stale information
-  this directory exists to avoid.
+- **Append, do not rewrite.** When a decision changes, write a new file under a
+  new topic name that states the new decision and links to the record it
+  supersedes. Editing the old record would erase the fact that the earlier choice
+  was made, which is exactly what this history is for.
 
 Instructions that have to be followed on every task stay in `AGENTS.md` or in a
 `SKILL.md`. A decision record explains a choice; it never replaces a rule.
@@ -114,17 +120,25 @@ Tool names and descriptions live in `servers/mcp/tools/*.go`; `server_test.go` a
 ## Build, Test, and Development Commands
 
 ```sh
-make build    # ui-build, then CGO_ENABLED=0 build to build/aimem, stripped
-make install  # build and copy to GOBIN (override: INSTALL_DIR=...)
-make test     # ui-build, then CGO_ENABLED=0 go test ./...
-make generate # regenerate the ogen code in internal/controllers/web/server
-make clean    # remove build/ and the UI dist
+make build        # ui-build, then CGO_ENABLED=0 build to build/aimem, stripped
+make install      # build and copy to GOBIN (override: INSTALL_DIR=...)
+make test         # ui-build, then CGO_ENABLED=0 go test ./...
+make generate     # fetch the embedding checkpoint if missing, then regenerate
+                  # the ogen code in internal/controllers/web/server
+make api-generate # generate, then regenerate the UI client types (schema.d.ts)
+make clean        # remove build/ and the UI dist
 ```
 
 The UI targets are `ui-install`, `ui-build`, `ui-test`, `ui-lint`,
 `ui-typecheck` (each runs npm in `internal/controllers/web/ui`). `build` and
 `test` depend on `ui-build` because `go:embed all:ui/dist` does not compile until
 `dist/` exists.
+
+`make generate` also fetches the EmbeddingGemma 2 checkpoint (about 1.4 GB) into
+`internal/adapters/embeder/gemma` when it is missing. That directory is
+git-ignored and `go:embed gemma` does not compile without it, so a fresh clone
+must generate before it can build. The download and `npm ci` are the only build
+steps that touch the network.
 
 ## Coding Style & Naming Conventions
 

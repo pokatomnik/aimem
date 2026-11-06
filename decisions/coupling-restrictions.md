@@ -19,7 +19,7 @@ These are bugs, fixed at once:
   both depending on an interface in `internal/entities` or on a locally declared
   one.
 - A use case importing a repository package. Use cases declare the interfaces
-  they need (`internal/use_cases/recall` declares `ai` and its store), and
+  they need (`internal/use_cases/recall` declares `embedder` and its store), and
   `scaffold` satisfies them.
 - A package returning a concrete type from another layer, or accepting one as an
   argument, where an interface would do.
