@@ -2,14 +2,16 @@
 
 ## Decision
 
-`scaffold` builds one `*slog.Logger` from `LOG_FILE` and `LOG_LEVEL` and injects
-it as `internal/shared/logging.Logger` into adapters, repositories,
+`scaffold` receives one `*slog.Logger` built from `LOG_FILE` and `LOG_LEVEL` and
+injects it as `internal/shared/logging.Logger` into adapters, repositories,
 use cases, the web controller and its handlers, and the MCP tools. Every component
 logs the error it is about to return, on a single source line, and then returns
 the same error and values it returned before. Logging never changes control flow,
 wrapping, or a business result. The logger is required: no component substitutes
 a discard logger for nil, so a missed wiring fails loudly instead of silently
-dropping records. Tests pass `logging.Discard()` explicitly.
+dropping records. Tests pass `logging.Discard()` explicitly. The startup path
+(`scaffold` and `main`) is deliberately silent and reports a failure to stderr, so
+help and other non-service invocations produce no log records.
 
 A refusal caused by the caller or its data is `Warn`; a fault on our side is
 `Error`. Startup and shutdown are `Info`. When `LOG_FILE` is empty the log goes

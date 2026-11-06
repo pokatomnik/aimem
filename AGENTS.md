@@ -68,13 +68,20 @@ Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `
 
 ## Logging
 
-Logging is a cross-cutting concern. `scaffold` builds one `*slog.Logger` and
-injects it into adapters, repositories, use cases, the web controller and the MCP
-adapter through the shared `logging.Logger` interface. Every layer logs the error
-it is about to return, on a single source line, and then returns the same error
-and values as before: logging never changes business logic. A refusal caused by
-the caller is `Warn`; a fault on our side is `Error`; startup and shutdown are
-`Info`.
+Logging is a cross-cutting concern. `main` chooses the output file (`os.Stderr`
+when `LOG_FILE` is empty, otherwise an append-only file it opens) and owns its
+lifetime. It passes that `*os.File` to `scaffold`, which creates one logger using
+`LOG_LEVEL` and injects it into adapters, repositories, use cases, the web
+controller and the MCP adapter through the shared `logging.Logger` interface.
+Every layer logs the error it is about to return, on a single source line, and then
+returns the same error and values as before: logging never changes business logic.
+A refusal caused by the caller is `Warn`; a fault on our side is `Error`; the web
+server's start and stop are `Info`.
+
+The startup path is silent: `scaffold` and `main` do not log it, so `aimem help`,
+`aimem --help` and a bare `aimem` emit no records. Records start with the web
+service, which logs its own start and stop. A failure before the service starts
+is printed to stderr, not written to the log.
 
 Every record answers three questions: that it failed, where (the automatic
 `source` file and line plus the operation named in the message), and why (the

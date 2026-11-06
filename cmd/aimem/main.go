@@ -15,9 +15,7 @@ func main() {
 
 // run keeps the exit code in one place, so every deferred cleanup — closing the
 // log file and stopping signal handling — runs before the process ends. Calling
-// log.Fatal or os.Exit from the body would skip those defers, and the final error
-// would bypass the configured logger: log.Fatal always writes to stderr and
-// ignores LOG_FILE, LOG_LEVEL and the source/context attributes.
+// os.Exit from the body would skip those defers.
 func run() int {
 	// The signal context comes first so that startup and serving share one
 	// cancellation: scaffold takes it while resolving the authentication mode, and
@@ -38,37 +36,31 @@ func run() int {
 		return 1
 	}
 
-	logger, closeLog, err := newLogger(cfg)
+	logFile, closeLogFile, err := openLogFile(cfg.GetLogFile())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Logging init failed: %v\n", err)
 
 		return 1
 	}
-	defer closeLog()
+	defer closeLogFile()
 
-	logger.Info("starting aimem")
-
-	root, err := scaffold(ctx, cfg, logger)
+	root, err := scaffold(ctx, cfg, logFile)
 	if err != nil {
-		logger.Error("startup failed", "error", err)
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 
 		return 1
 	}
 
 	err = root.ExecuteContext(ctx)
 	if errors.Is(err, context.Canceled) {
-		logger.Info("cancelled")
-
 		return 0
 	}
 
 	if err != nil {
-		logger.Error("command failed", "error", err)
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 
 		return 1
 	}
-
-	logger.Info("stopped")
 
 	return 0
 }

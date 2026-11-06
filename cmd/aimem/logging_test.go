@@ -1,20 +1,31 @@
 package main
 
-import "testing"
+import (
+	"io"
+	"os"
+	"testing"
+)
 
-// With no LOG_FILE the logger must still be usable: stderr is the default
-// destination, and the closer has to be callable so main can defer it
-// unconditionally. The test never writes, so it touches no file.
-func TestNewLoggerWithoutAFile(t *testing.T) {
+func TestOpenLogFileWithoutPathUsesStderr(t *testing.T) {
 	t.Parallel()
 
-	logger, closeLog, err := newLogger(&Config{LogLevel: "info"})
+	file, closeLogFile, err := openLogFile("")
 	if err != nil {
-		t.Fatalf("newLogger: %v", err)
+		t.Fatalf("openLogFile: %v", err)
 	}
-	defer closeLog()
+	if file != os.Stderr {
+		t.Fatalf("openLogFile() = %p, want stderr %p", file, os.Stderr)
+	}
+	if closeLogFile == nil {
+		t.Fatal("openLogFile() returned a nil close callback")
+	}
+	closeLogFile()
+}
 
-	if logger == nil {
-		t.Fatal("logger is nil")
+func TestNewLogger(t *testing.T) {
+	t.Parallel()
+
+	if logger := newLogger(io.Discard, "info"); logger == nil {
+		t.Fatal("newLogger returned nil")
 	}
 }

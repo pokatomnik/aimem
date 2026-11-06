@@ -140,6 +140,11 @@ answers what failed, where, and why. A refusal caused by the caller is logged at
 `warn`; a fault on the server side is logged at `error`. Tokens, fact text and
 search queries are never logged.
 
+The startup path is silent: `aimem help`, `aimem --help` and a bare `aimem` write
+no log records. Records start with the `web` service, which logs its own start and
+stop. A failure before the service starts is printed to stderr, not written to the
+log.
+
 > `AIMEM_DIMENSIONS` must match the vector width of the embedding model — 768
 > for the bundled one. If you change it after the database has been created,
 > recreate it — delete `~/.aimem` for the embedded backend, or drop the Qdrant

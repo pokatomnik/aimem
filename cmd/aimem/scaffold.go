@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"os"
 	"path"
@@ -24,20 +23,14 @@ import (
 	ucRemoveFactPackage "github.com/pokatomnik/gomem/internal/use_cases/removefact"
 )
 
-func scaffold(ctx context.Context, cfg *Config, logger *slog.Logger) (*cobra.Command, error) {
+func scaffold(ctx context.Context, cfg *Config, logFile *os.File) (*cobra.Command, error) {
+	logger := newLogger(logFile, cfg.GetLogLevel())
 	client := http.DefaultClient
 
 	userHome, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
-
-	backend := "embedded"
-	if cfg.RequireAuth() {
-		backend = "qdrant"
-	}
-
-	logger.Info("storage backend selected", "backend", backend)
 
 	embeddedDB := rKVPackage.New(cfg, path.Join(userHome, ".aimem"), logger)
 	qdrantDB := rQdrantPackage.New(cfg, client, logger)
@@ -81,8 +74,6 @@ func scaffold(ctx context.Context, cfg *Config, logger *slog.Logger) (*cobra.Com
 		aMCP          *aMCPPackage.Server
 		webController *cmdWebPackage.Controller
 	)
-
-	logger.Info("authentication mode selected", "required", authRequired)
 
 	if authRequired {
 		aMCP, err = aMCPPackage.NewWithAuth(mcpDeps, users, logger)
