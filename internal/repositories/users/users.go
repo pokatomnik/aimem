@@ -7,6 +7,7 @@ import (
 
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 	"github.com/pokatomnik/gomem/internal/entities/user"
+	"github.com/pokatomnik/gomem/internal/shared/logging"
 )
 
 type (
@@ -18,6 +19,7 @@ type (
 	Users struct {
 		backend backend
 		list    func() map[string]user.User
+		logger  logging.Logger
 	}
 
 	userParsed struct {
@@ -26,7 +28,7 @@ type (
 	}
 )
 
-func New(b backend) *Users {
+func New(b backend, logger logging.Logger) *Users {
 	usersJSON := b.GetUsersJSON()
 	getUsers := func() map[string]user.User {
 		var usersParsed []userParsed
@@ -35,6 +37,8 @@ func New(b backend) *Users {
 
 		err := json.Unmarshal([]byte(usersJSON), &usersParsed)
 		if err != nil {
+			logger.Error("parse users JSON failed", "config", "AIMEM_USERS_JSON", "error", err)
+
 			return result
 		}
 
@@ -54,6 +58,7 @@ func New(b backend) *Users {
 	return &Users{
 		backend: b,
 		list:    sync.OnceValue[map[string]user.User](getUsers),
+		logger:  logger,
 	}
 }
 
@@ -61,6 +66,8 @@ func New(b backend) *Users {
 func (u *Users) GetUserByToken(ctx context.Context, token string) (user.User, error) {
 	usr, ok := u.list()[token]
 	if !ok {
+		u.logger.Warn("user token not found", "config", "AIMEM_USERS_JSON", "error", apperrors.ErrUserNotFound)
+
 		return user.User{}, apperrors.ErrUserNotFound
 	}
 
@@ -86,6 +93,8 @@ func (u *Users) RequireAuthentication(ctx context.Context) (bool, error) {
 
 	configured := u.list()
 	if len(configured) == 0 {
+		u.logger.Error("no users configured for qdrant", "config", "AIMEM_USERS_JSON", "error", apperrors.ErrNoUsersConfigured)
+
 		return false, apperrors.ErrNoUsersConfigured
 	}
 

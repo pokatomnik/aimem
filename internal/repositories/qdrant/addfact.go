@@ -27,6 +27,8 @@ import (
 // mean anything now that one server holds several users.
 func (q *Qdrant) AddFact(ctx context.Context, userID string, vector []float32, summary, content string) error {
 	if err := q.ensureCollection(ctx, userID); err != nil {
+		q.logger.Error("ensure collection failed", "user_id", userID, "error", err)
+
 		return err
 	}
 
@@ -34,10 +36,14 @@ func (q *Qdrant) AddFact(ctx context.Context, userID string, vector []float32, s
 
 	exists, err := q.pointExists(ctx, userID, factID)
 	if err != nil {
+		q.logger.Error("check fact existence failed", "user_id", userID, "fact_id", factID, "error", err)
+
 		return err
 	}
 
 	if exists {
+		q.logger.Warn("fact already exists", "user_id", userID, "fact_id", factID, "error", apperrors.ErrAlreadyHasFact)
+
 		return apperrors.ErrAlreadyHasFact
 	}
 
@@ -53,7 +59,13 @@ func (q *Qdrant) AddFact(ctx context.Context, userID string, vector []float32, s
 		}},
 	}
 
-	return q.do(ctx, http.MethodPut, pathPoints(userID), writeQuery(), request, nil)
+	if err := q.do(ctx, http.MethodPut, pathPoints(userID), writeQuery(), request, nil); err != nil {
+		q.logger.Error("upsert fact failed", "user_id", userID, "fact_id", factID, "error", err)
+
+		return err
+	}
+
+	return nil
 }
 
 // pointExists reports whether a point with this ID is stored in the user's
@@ -69,6 +81,8 @@ func (q *Qdrant) pointExists(ctx context.Context, userID, factID string) (bool, 
 	var points []retrievedPoint
 
 	if err := q.do(ctx, http.MethodPost, pathPoints(userID), nil, request, &points); err != nil {
+		q.logger.Error("check fact existence failed", "user_id", userID, "fact_id", factID, "error", err)
+
 		return false, err
 	}
 

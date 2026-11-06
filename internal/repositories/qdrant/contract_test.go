@@ -22,12 +22,12 @@ type store interface {
 var _ store = (*Qdrant)(nil)
 
 // New must hand back a pointer, so callers share one repository.
-var _ *Qdrant = New(fakeConfig{}, nil)
+var _ *Qdrant = New(fakeConfig{}, nil, testLogger())
 
 func TestNewFallsBackToDefaultClient(t *testing.T) {
 	t.Parallel()
 
-	repository := New(fakeConfig{host: "http://qdrant.test"}, nil)
+	repository := New(fakeConfig{host: "http://qdrant.test"}, nil, testLogger())
 	if repository.client == nil {
 		t.Fatalf("New(nil client) left client nil")
 	}

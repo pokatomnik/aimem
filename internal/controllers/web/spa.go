@@ -51,20 +51,24 @@ var spaContentTypes = map[string]string{
 // authRequired is baked into the served index.html rather than exposed through
 // an endpoint: the UI needs the answer before it renders anything, and the page
 // that boots it is the one place the server can hand it over without a request.
-func newSPAHandler(authRequired bool) (http.Handler, error) {
+func newSPAHandler(authRequired bool, logger logger) (http.Handler, error) {
 	fsys, err := fs.Sub(spaDist, spaDistDir)
 	if err != nil {
+		logger.Error("open embedded SPA directory failed", "dir", spaDistDir, "error", err)
+
 		return nil, err
 	}
 
-	return newFileHandler(fsys, authRequired), nil
+	return newFileHandler(fsys, authRequired, logger), nil
 }
 
 // newFileHandler serves files from fsys. It exists as a seam: tests pass an
 // fstest.MapFS, so they exercise the serving rules without the real build.
-func newFileHandler(fsys fs.FS, authRequired bool) http.Handler {
+func newFileHandler(fsys fs.FS, authRequired bool, logger logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			logger.Warn("SPA request method not allowed", "method", r.Method, "path", r.URL.Path, "status", http.StatusMethodNotAllowed)
+
 			w.Header().Set("Allow", http.MethodGet+", "+http.MethodHead)
 			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 
@@ -76,7 +80,7 @@ func newFileHandler(fsys fs.FS, authRequired bool) http.Handler {
 			name = spaIndexFile
 		}
 
-		serveFile(w, r, fsys, name, authRequired)
+		serveFile(w, r, fsys, name, authRequired, logger)
 	})
 }
 
@@ -85,11 +89,13 @@ func newFileHandler(fsys fs.FS, authRequired bool) http.Handler {
 // There is deliberately no SPA fallback: the app uses HashRouter, so the route
 // lives after '#' and the server only ever sees "/". A missing path is a bug in
 // the request, not a client-side route.
-func serveFile(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string, authRequired bool) {
+func serveFile(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string, authRequired bool, logger logger) {
 	// ValidPath rejects the empty name, "." and ".." components, so a request
 	// cannot escape the embedded tree. net/http hands over an already decoded
 	// path, which means %2e%2e arrives here as "..".
 	if !fs.ValidPath(name) {
+		logger.Warn("SPA path is invalid", "path", r.URL.Path, "status", http.StatusNotFound)
+
 		http.NotFound(w, r)
 
 		return
@@ -99,6 +105,8 @@ func serveFile(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string, 
 	if err != nil {
 		// Unreadable covers both a missing file and a directory, since dist is
 		// flat: directories are never servable entries on their own.
+		logger.Warn("SPA file not found", "path", name, "error", err)
+
 		http.NotFound(w, r)
 
 		return
@@ -121,7 +129,9 @@ func serveFile(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string, 
 		return
 	}
 
-	_, _ = w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		logger.Error("write SPA file failed", "path", name, "error", err)
+	}
 }
 
 // spaAuthFlagScript sets the global the UI reads on boot.

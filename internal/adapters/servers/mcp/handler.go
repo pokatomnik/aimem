@@ -25,22 +25,24 @@ type Server struct {
 
 // NewWithAuth builds the server for a deployment where every tool call must carry
 // a valid token.
-func NewWithAuth(deps MCPDeps, authentication mcpdeps.Authentication) (*Server, error) {
-	return newServer(deps, tools.NewTokenAuthenticator(authentication))
+func NewWithAuth(deps MCPDeps, authentication mcpdeps.Authentication, l mcpdeps.Logger) (*Server, error) {
+	return newServer(deps, tools.NewTokenAuthenticator(authentication, l), l)
 }
 
 // NewWithoutAuth builds the server for the embedded backend, which stores one
 // operator's local files and ignores the user ID. Tool calls run anonymously: no
 // header is read and none is required.
-func NewWithoutAuth(deps MCPDeps) (*Server, error) {
-	return newServer(deps, tools.NewAnonymousAuthenticator())
+func NewWithoutAuth(deps MCPDeps, l mcpdeps.Logger) (*Server, error) {
+	return newServer(deps, tools.NewAnonymousAuthenticator(), l)
 }
 
 // newServer is the single place the two constructors share, so the fields they
 // set cannot drift apart.
-func newServer(deps MCPDeps, a mcpdeps.Authenticator) (*Server, error) {
-	srv, err := createServer(deps, a)
+func newServer(deps MCPDeps, a mcpdeps.Authenticator, l mcpdeps.Logger) (*Server, error) {
+	srv, err := createServer(deps, a, l)
 	if err != nil {
+		l.Error("create MCP server failed", "error", err)
+
 		return nil, err
 	}
 

@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gorse-io/xvec"
+	"github.com/pokatomnik/gomem/internal/shared/logging"
 )
 
 type (
@@ -37,10 +38,11 @@ type (
 		dataPath string
 		schema   xvec.CollectionSchema
 		open     collectionOpener
+		logger   logging.Logger
 	}
 )
 
-func New(config config, dataPath string) *KV {
+func New(config config, dataPath string, logger logging.Logger) *KV {
 	index := xvec.NewHNSWIndexParams(xvec.MetricTypeCosine)
 	schema := xvec.NewCollectionSchema(
 		"memory",
@@ -59,6 +61,7 @@ func New(config config, dataPath string) *KV {
 		config:   config,
 		dataPath: dataPath,
 		schema:   schema,
+		logger:   logger,
 	}
 }
 
@@ -94,10 +97,14 @@ func (kv *KV) openXvec(ctx context.Context) (collection, error) {
 		return opened, nil
 	}
 
+	kv.logger.Debug("open collection failed, creating it", "path", kv.dataPath, "error", err)
+
 	opened, err = xvec.CreateAndOpen(ctx, kv.dataPath, kv.schema, options)
 	if err == nil {
 		return opened, nil
 	}
+
+	kv.logger.Error("create collection failed", "path", kv.dataPath, "error", err)
 
 	return nil, err
 }

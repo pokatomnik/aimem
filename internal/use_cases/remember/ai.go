@@ -15,6 +15,8 @@ func (r *Remember) getEmbeddingsAndSummary(ctx context.Context, fact string) (st
 	eg.Go(func() error {
 		summary, err := r.summarizer.Summarize(ctx, fact)
 		if err != nil {
+			r.logger.Error("summarize fact failed", "fact_length", len(fact), "error", err)
+
 			return err
 		}
 
@@ -26,6 +28,8 @@ func (r *Remember) getEmbeddingsAndSummary(ctx context.Context, fact string) (st
 	eg.Go(func() error {
 		emb, err := r.embedder.GetEmbeddings(ctx, fact)
 		if err != nil {
+			r.logger.Error("embed fact failed", "fact_length", len(fact), "error", err)
+
 			return err
 		}
 
@@ -36,6 +40,8 @@ func (r *Remember) getEmbeddingsAndSummary(ctx context.Context, fact string) (st
 
 	err := eg.Wait()
 	if err != nil {
+		r.logger.Error("summarize and embed fact failed", "fact_length", len(fact), "error", err)
+
 		return "", embeddings.Embeddings{}, err
 	}
 

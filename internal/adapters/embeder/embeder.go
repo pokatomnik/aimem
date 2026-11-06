@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/pokatomnik/gomem/internal/adapters/embeder/engine"
+	"github.com/pokatomnik/gomem/internal/shared/logging"
 )
 
 type (
@@ -11,9 +12,10 @@ type (
 		encoder     *engine.Encoder
 		initialized bool
 		mx          sync.Mutex
+		logger      logging.Logger
 	}
 )
 
-func New() *Embedder {
-	return &Embedder{}
+func New(logger logging.Logger) *Embedder {
+	return &Embedder{logger: logger}
 }

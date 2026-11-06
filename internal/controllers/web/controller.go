@@ -25,6 +25,10 @@ type Controller struct {
 	// resolved user, and is baked into the served page so the API and the UI cannot
 	// disagree.
 	authRequired bool
+	// logger records startup and every failure that becomes a response. It is
+	// injected rather than created here, so the destination and level are decided
+	// once at the composition root.
+	logger logger
 }
 
 const defaultWebHost = "127.0.0.1:8888"
@@ -39,8 +43,9 @@ func NewWithAuth(
 	removeFact RemoveFact,
 	mcpHandler http.Handler,
 	authentication Authentication,
+	logger logger,
 ) *Controller {
-	return newController(cfg, remember, recall, getFact, removeFact, mcpHandler, authentication, true)
+	return newController(cfg, remember, recall, getFact, removeFact, mcpHandler, authentication, logger, true)
 }
 
 // NewWithoutAuth serves a deployment where the header carries no meaning: one
@@ -53,8 +58,9 @@ func NewWithoutAuth(
 	removeFact RemoveFact,
 	mcpHandler http.Handler,
 	authentication Authentication,
+	logger logger,
 ) *Controller {
-	return newController(cfg, remember, recall, getFact, removeFact, mcpHandler, authentication, false)
+	return newController(cfg, remember, recall, getFact, removeFact, mcpHandler, authentication, logger, false)
 }
 
 // newController is the single place the two constructors share, so the fields they
@@ -67,6 +73,7 @@ func newController(
 	removeFact RemoveFact,
 	mcpHandler http.Handler,
 	authentication Authentication,
+	logger logger,
 	authRequired bool,
 ) *Controller {
 	return &Controller{
@@ -78,6 +85,7 @@ func newController(
 		mcpHandler:     mcpHandler,
 		authentication: authentication,
 		authRequired:   authRequired,
+		logger:         logger,
 	}
 }
 
@@ -96,6 +104,8 @@ func (c *Controller) HandleBearerAuth(
 
 	u, err := c.authentication.GetUserByToken(ctx, t.Token)
 	if err != nil {
+		c.logger.Warn("bearer token rejected", "operation", string(operationName), "error", err)
+
 		return ctx, err
 	}
 
@@ -109,20 +119,27 @@ func (c *Controller) Run(
 ) error {
 	host := cmp.Or(c.cfg.GetWebHTTPHost(), defaultWebHost)
 
-	opts := ServerOptions()
+	c.logger.Info("web server starting", "address", host)
+
+	opts := ServerOptions(c.logger)
 	api, err := server.NewServer(&Methods{
 		remember:     c.remember,
 		recall:       c.recall,
 		getFact:      c.getFact,
 		removeFact:   c.removeFact,
 		authRequired: c.authRequired,
+		logger:       c.logger,
 	}, c, opts...)
 	if err != nil {
+		c.logger.Error("create web API server failed", "address", host, "error", err)
+
 		return err
 	}
 
-	spa, err := newSPAHandler(c.authRequired)
+	spa, err := newSPAHandler(c.authRequired, c.logger)
 	if err != nil {
+		c.logger.Error("create SPA handler failed", "auth_required", c.authRequired, "error", err)
+
 		return err
 	}
 
@@ -138,10 +155,14 @@ func (c *Controller) Run(
 
 	err = ctxServer.ListenAndServeContext(ctx, options)
 	if errors.Is(err, http.ErrServerClosed) {
+		c.logger.Info("web server stopped", "address", host)
+
 		return nil
 	}
 
 	if err != nil {
+		c.logger.Error("web server failed", "address", host, "error", err)
+
 		return err
 	}
 

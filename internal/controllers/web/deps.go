@@ -5,6 +5,7 @@ import (
 
 	"github.com/pokatomnik/gomem/internal/entities/fact"
 	"github.com/pokatomnik/gomem/internal/entities/user"
+	"github.com/pokatomnik/gomem/internal/shared/logging"
 )
 
 type (
@@ -31,4 +32,8 @@ type (
 	Authentication interface {
 		GetUserByToken(ctx context.Context, token string) (user.User, error)
 	}
+
+	// logger keeps the local spelling used by this package while the interface
+	// itself lives in shared, where every layer can depend on it.
+	logger = logging.Logger
 )

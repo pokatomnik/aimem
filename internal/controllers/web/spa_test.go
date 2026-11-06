@@ -36,7 +36,7 @@ func spaRequestAuth(t *testing.T, fsys fs.FS, method, target string, authRequire
 	t.Helper()
 
 	rec := httptest.NewRecorder()
-	newFileHandler(fsys, authRequired).ServeHTTP(rec, httptest.NewRequest(method, target, nil))
+	newFileHandler(fsys, authRequired, testLogger()).ServeHTTP(rec, httptest.NewRequest(method, target, nil))
 
 	return rec
 }

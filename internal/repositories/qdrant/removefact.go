@@ -23,10 +23,18 @@ func (q *Qdrant) RemoveFactByID(ctx context.Context, userID, factID string) erro
 	}
 
 	if err := q.ensureCollection(ctx, userID); err != nil {
+		q.logger.Error("ensure collection failed", "user_id", userID, "error", err)
+
 		return err
 	}
 
 	request := deletePointsRequest{Points: []string{pointID}}
 
-	return q.do(ctx, http.MethodPost, pathPointsDelete(userID), writeQuery(), request, nil)
+	if err := q.do(ctx, http.MethodPost, pathPointsDelete(userID), writeQuery(), request, nil); err != nil {
+		q.logger.Error("delete fact failed", "user_id", userID, "fact_id", factID, "error", err)
+
+		return err
+	}
+
+	return nil
 }

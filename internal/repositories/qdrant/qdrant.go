@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+
+	"github.com/pokatomnik/gomem/internal/shared/logging"
 )
 
 type (
@@ -28,13 +30,14 @@ type (
 	Qdrant struct {
 		config config
 		client *http.Client
+		logger logging.Logger
 	}
 )
 
 // New builds the repository. A nil client falls back to http.DefaultClient,
 // which matches how the rest of the application makes requests: without a
 // deadline, cancelled only through the context.
-func New(config config, client *http.Client) *Qdrant {
+func New(config config, client *http.Client, logger logging.Logger) *Qdrant {
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -42,6 +45,7 @@ func New(config config, client *http.Client) *Qdrant {
 	return &Qdrant{
 		config: config,
 		client: client,
+		logger: logger,
 	}
 }
 
@@ -52,6 +56,8 @@ func (q *Qdrant) ensureCollection(ctx context.Context, userID string) error {
 	var existence collectionExistence
 
 	if err := q.do(ctx, http.MethodGet, pathCollectionExists(userID), nil, nil, &existence); err != nil {
+		q.logger.Error("check collection existence failed", "user_id", userID, "error", err)
+
 		return err
 	}
 
@@ -80,7 +86,13 @@ func (q *Qdrant) createCollection(ctx context.Context, userID string) error {
 	// loser with 409; the collection it wanted now exists either way.
 	var conflict *httpError
 	if errors.As(err, &conflict) && conflict.StatusCode == http.StatusConflict {
+		q.logger.Debug("collection was created concurrently", "user_id", userID, "error", err)
+
 		return nil
+	}
+
+	if err != nil {
+		q.logger.Error("create collection failed", "user_id", userID, "dimensions", q.config.GetDimensions(), "error", err)
 	}
 
 	return err

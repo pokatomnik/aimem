@@ -46,19 +46,23 @@ func TestEveryConfigEnvTagIsAcceptedByTheParser(t *testing.T) {
 	}
 }
 
-// Every runtime setting is reached through the AIMEM_ prefix; the unprefixed
-// LLM_HOST of an earlier revision was read from nowhere and documented
-// everywhere, which is the mistake this guards against.
-func TestEveryConfigEnvNameUsesTheAIMEMPrefix(t *testing.T) {
+// Application settings use the AIMEM_ prefix; the unprefixed LLM_HOST of an
+// earlier revision was read from nowhere and documented everywhere, which is the
+// mistake this guards against. The logging variables are the deliberate
+// exception: LOG_FILE and LOG_LEVEL are the conventional names an operator
+// already knows.
+func TestConfigEnvNamesUseAIMEMPrefixOrStandardLogNames(t *testing.T) {
 	t.Parallel()
+
+	standard := map[string]bool{"LOG_FILE": true, "LOG_LEVEL": true}
 
 	typ := reflect.TypeOf(Config{})
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		name, _, _ := strings.Cut(field.Tag.Get("env"), ",")
 
-		if !strings.HasPrefix(name, "AIMEM_") {
-			t.Errorf("Config.%s reads %q, want an AIMEM_ name", field.Name, name)
+		if !strings.HasPrefix(name, "AIMEM_") && !standard[name] {
+			t.Errorf("Config.%s reads %q, want an AIMEM_ name or LOG_FILE/LOG_LEVEL", field.Name, name)
 		}
 	}
 }
@@ -80,6 +84,8 @@ func TestConfigEnvTags(t *testing.T) {
 		"QdrantHost":          "AIMEM_QDRANT_HOST",
 		"QdrantAPIKey":        "AIMEM_QDRANT_API_KEY",
 		"UsersJSON":           "AIMEM_USERS_JSON",
+		"LogFile":             "LOG_FILE",
+		"LogLevel":            "LOG_LEVEL",
 	}
 
 	typ := reflect.TypeOf(Config{})
@@ -107,6 +113,7 @@ func TestConfigEnvDefaults(t *testing.T) {
 		"TopK":                "5",
 		"SimilarityThreshold": "0.7",
 		"WebHTTPHost":         "127.0.0.1:8888",
+		"LogLevel":            "info",
 	}
 
 	typ := reflect.TypeOf(Config{})
@@ -196,6 +203,8 @@ func TestGetConfigReadsEverySetting(t *testing.T) {
 	environ["AIMEM_QDRANT_HOST"] = "http://qdrant.example:6333"
 	environ["AIMEM_QDRANT_API_KEY"] = "qk"
 	environ["AIMEM_USERS_JSON"] = `[{"id":"alice","tokens":["t"]}]`
+	environ["LOG_FILE"] = "/var/log/aimem.log"
+	environ["LOG_LEVEL"] = "debug"
 
 	cfg, err := getConfig(environ)
 	if err != nil {
@@ -213,6 +222,8 @@ func TestGetConfigReadsEverySetting(t *testing.T) {
 		"QdrantHost":          {cfg.GetQdrantHost(), "http://qdrant.example:6333"},
 		"QdrantAPIKey":        {cfg.GetQdrantAPIKey(), "qk"},
 		"UsersJSON":           {cfg.GetUsersJSON(), `[{"id":"alice","tokens":["t"]}]`},
+		"LogFile":             {cfg.GetLogFile(), "/var/log/aimem.log"},
+		"LogLevel":            {cfg.GetLogLevel(), "debug"},
 		"RequireAuth":         {cfg.RequireAuth(), true},
 	}
 
@@ -245,6 +256,10 @@ func TestGetConfigDefaults(t *testing.T) {
 		t.Errorf("GetQdrantAPIKey() = %q, want empty", cfg.GetQdrantAPIKey())
 	case cfg.GetUsersJSON() != "":
 		t.Errorf("GetUsersJSON() = %q, want empty", cfg.GetUsersJSON())
+	case cfg.GetLogFile() != "":
+		t.Errorf("GetLogFile() = %q, want empty (stderr)", cfg.GetLogFile())
+	case cfg.GetLogLevel() != "info":
+		t.Errorf("GetLogLevel() = %q, want info", cfg.GetLogLevel())
 	case cfg.RequireAuth():
 		t.Error("RequireAuth() = true without a Qdrant host; that would pick Qdrant on a default install")
 	}
@@ -309,6 +324,8 @@ func TestGetConfigEmptyValueFallsBackToTheDefault(t *testing.T) {
 	environ["AIMEM_TOP_K"] = ""
 	environ["AIMEM_SIMILARITY_THRESHOLD"] = ""
 	environ["AIMEM_WEB_HTTP_HOST"] = ""
+	environ["LOG_FILE"] = ""
+	environ["LOG_LEVEL"] = ""
 
 	cfg, err := getConfig(environ)
 	if err != nil {
@@ -322,6 +339,10 @@ func TestGetConfigEmptyValueFallsBackToTheDefault(t *testing.T) {
 		t.Errorf("GetSimilarityThreshold() = %v, want the default 0.7", cfg.GetSimilarityThreshold())
 	case cfg.GetWebHTTPHost() != "127.0.0.1:8888":
 		t.Errorf("GetWebHTTPHost() = %q, want the default 127.0.0.1:8888", cfg.GetWebHTTPHost())
+	case cfg.GetLogFile() != "":
+		t.Errorf("GetLogFile() = %q, want empty (stderr)", cfg.GetLogFile())
+	case cfg.GetLogLevel() != "info":
+		t.Errorf("GetLogLevel() = %q, want info", cfg.GetLogLevel())
 	}
 }
 

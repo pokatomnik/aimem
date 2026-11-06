@@ -20,6 +20,7 @@ type Methods struct {
 	getFact      GetFact
 	removeFact   RemoveFact
 	authRequired bool
+	logger       logger
 }
 
 // getUserID returns the user the request was authenticated as.
@@ -36,6 +37,8 @@ func (m *Methods) getUserID(ctx context.Context) (string, error) {
 
 	id, _ := ctx.Value(userIDKey{}).(string)
 	if id == "" {
+		m.logger.Warn("request has no authenticated user", "error", apperrors.ErrUserNotFound)
+
 		return "", apperrors.ErrUserNotFound
 	}
 
@@ -50,6 +53,8 @@ func (m *Methods) AddFact(ctx context.Context, req *server.AddFactReq) (server.A
 
 	summary, err := m.remember.Remember(ctx, userID, req.Value.Fact)
 	if err != nil {
+		m.logger.Error("remember failed", "user_id", userID, "fact_length", len(req.Value.Fact), "error", err)
+
 		return nil, err
 	}
 
@@ -68,11 +73,15 @@ func (m *Methods) GetFactByID(ctx context.Context, params server.GetFactByIDPara
 
 	res, err := m.getFact.GetFact(ctx, userID, params.FactID)
 	if err != nil {
+		m.logger.Error("get fact failed", "user_id", userID, "fact_id", params.FactID, "error", err)
+
 		return nil, err
 	}
 
 	createdAt, err := time.Parse(time.RFC3339, res.CreatedAt)
 	if err != nil {
+		m.logger.Error("parse fact created_at failed", "fact_id", params.FactID, "created_at", res.CreatedAt, "error", err)
+
 		return nil, err
 	}
 
@@ -94,6 +103,8 @@ func (m *Methods) Search(ctx context.Context, req *server.SearchRequestBody) (se
 
 	res, err := m.recall.Recall(ctx, userID, req.Query)
 	if err != nil {
+		m.logger.Error("recall failed", "user_id", userID, "query_length", len(req.Query), "error", err)
+
 		return nil, err
 	}
 
@@ -101,6 +112,8 @@ func (m *Methods) Search(ctx context.Context, req *server.SearchRequestBody) (se
 	for _, f := range res {
 		createdAt, err := time.Parse(time.RFC3339, f.CreatedAt)
 		if err != nil {
+			m.logger.Error("parse search result created_at failed", "fact_id", f.ID, "created_at", f.CreatedAt, "error", err)
+
 			return nil, err
 		}
 		found = append(found, server.SearchResultItem{
@@ -125,6 +138,8 @@ func (m *Methods) RemoveFactByID(ctx context.Context, params server.RemoveFactBy
 
 	err = m.removeFact.RemoveFactByID(ctx, userID, params.FactID)
 	if err != nil {
+		m.logger.Error("remove fact failed", "user_id", userID, "fact_id", params.FactID, "error", err)
+
 		return nil, err
 	}
 

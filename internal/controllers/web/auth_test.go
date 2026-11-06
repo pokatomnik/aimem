@@ -34,8 +34,11 @@ func apiFor(t *testing.T, sec server.SecurityHandler, authRequired bool, m *Meth
 		m = &Methods{}
 	}
 	m.authRequired = authRequired
+	if m.logger == nil {
+		m.logger = testLogger()
+	}
 
-	api, err := server.NewServer(m, sec, ServerOptions()...)
+	api, err := server.NewServer(m, sec, ServerOptions(testLogger())...)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -172,7 +175,7 @@ func TestGetUserID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := &Methods{authRequired: tt.authRequired}
+			m := &Methods{authRequired: tt.authRequired, logger: testLogger()}
 
 			id, err := m.getUserID(tt.ctx)
 
@@ -225,7 +228,7 @@ func (c *countingContext) Value(key any) any {
 func TestGetUserIDDoesNotReadContextWhenAuthIsOff(t *testing.T) {
 	ctx := &countingContext{Context: context.WithValue(context.Background(), userIDKey{}, "u1")}
 
-	m := &Methods{authRequired: false}
+	m := &Methods{authRequired: false, logger: testLogger()}
 
 	id, err := m.getUserID(ctx)
 
@@ -247,7 +250,7 @@ func TestGetUserIDDoesNotReadContextWhenAuthIsOff(t *testing.T) {
 func TestGetUserIDReadsContextWhenAuthIsOn(t *testing.T) {
 	ctx := &countingContext{Context: context.WithValue(context.Background(), userIDKey{}, "u1")}
 
-	m := &Methods{authRequired: true}
+	m := &Methods{authRequired: true, logger: testLogger()}
 
 	if _, err := m.getUserID(ctx); err != nil {
 		t.Fatalf("getUserID: %v", err)

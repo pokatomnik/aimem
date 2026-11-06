@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
+	"github.com/pokatomnik/gomem/internal/shared/logging"
 )
 
 type (
@@ -21,12 +22,13 @@ type (
 	}
 
 	LLM struct {
-		cfg config
+		cfg    config
+		logger logging.Logger
 	}
 )
 
-func New(cfg config) *LLM {
-	return &LLM{cfg}
+func New(cfg config, logger logging.Logger) *LLM {
+	return &LLM{cfg: cfg, logger: logger}
 }
 
 func (l *LLM) Summarize(ctx context.Context, text string) (string, error) {
@@ -46,6 +48,8 @@ func (l *LLM) Summarize(ctx context.Context, text string) (string, error) {
 
 	raw, err := json.Marshal(chatRequest)
 	if err != nil {
+		l.logger.Error("marshal chat request failed", "model", l.cfg.GetSummarizationModel(), "error", err)
+
 		return "", err
 	}
 	br := bytes.NewReader(raw)
@@ -54,11 +58,15 @@ func (l *LLM) Summarize(ctx context.Context, text string) (string, error) {
 
 	u, err := url.JoinPath(baseHost, "chat", "completions")
 	if err != nil {
+		l.logger.Error("build chat completions url failed", "host", baseHost, "error", err)
+
 		return "", fmt.Errorf("failed to build chat completions url: %w", err)
 	}
 
 	request, err := http.NewRequestWithContext(ctx, "POST", u, br)
 	if err != nil {
+		l.logger.Error("build chat completions request failed", "url", u, "error", err)
+
 		return "", fmt.Errorf("failed to build request: %w", err)
 	}
 
@@ -70,26 +78,36 @@ func (l *LLM) Summarize(ctx context.Context, text string) (string, error) {
 
 	res, err := http.DefaultClient.Do(request)
 	if err != nil {
+		l.logger.Error("perform chat completions request failed", "url", u, "error", err)
+
 		return "", fmt.Errorf("failed to perform chat completions request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
+		l.logger.Error("chat completions returned a non-200 status", "url", u, "status", res.StatusCode, "error", apperrors.ErrSummarize)
+
 		return "", fmt.Errorf("Server response is not 200: %w", apperrors.ErrSummarize)
 	}
 
 	data, err := io.ReadAll(res.Body)
 	if err != nil {
+		l.logger.Error("read chat completions response failed", "url", u, "error", err)
+
 		return "", err
 	}
 
 	var result chatResponse
 	if err := json.Unmarshal(data, &result); err != nil {
+		l.logger.Error("unmarshal chat completions response failed", "url", u, "error", err)
+
 		return "", fmt.Errorf("Failed to unmarshal response: %w", err)
 	}
 
 	choices := result.Choices
 	if len(choices) == 0 {
+		l.logger.Error("chat completions returned no choices", "url", u, "error", apperrors.ErrSummarize)
+
 		return "", fmt.Errorf("No response from LLM: %w", apperrors.ErrSummarize)
 	}
 

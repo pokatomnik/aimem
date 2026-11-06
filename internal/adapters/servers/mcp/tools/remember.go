@@ -16,7 +16,7 @@ type (
 	}
 )
 
-func ToolRemember(a mcpdeps.Authenticator, r mcpdeps.Remember) (
+func ToolRemember(a mcpdeps.Authenticator, r mcpdeps.Remember, l mcpdeps.Logger) (
 	mcp.Tool,
 	mcp.ToolHandlerFor[rememberInput, rememberOutput],
 	error,
@@ -39,11 +39,15 @@ func ToolRemember(a mcpdeps.Authenticator, r mcpdeps.Remember) (
 	) {
 		userID, err := a.UserID(ctx, req)
 		if err != nil {
+			logToolError(l, tool.Name, "", err)
+
 			return &mcp.CallToolResult{IsError: true}, rememberOutput{}, err
 		}
 
 		summary, err := r.Remember(ctx, userID, input.Fact)
 		if err != nil {
+			logToolError(l, tool.Name, userID, err)
+
 			return &mcp.CallToolResult{IsError: true}, rememberOutput{}, err
 		}
 

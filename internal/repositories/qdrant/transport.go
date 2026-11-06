@@ -37,7 +37,10 @@ func (e *httpError) Error() string {
 func (q *Qdrant) do(ctx context.Context, method, path string, query url.Values, body, out any) error {
 	baseURL := q.baseURL()
 	if baseURL == "" {
-		return fmt.Errorf("qdrant: host is not configured")
+		err := fmt.Errorf("qdrant: host is not configured")
+		q.logger.Error("qdrant request failed", "method", method, "path", path, "error", err)
+
+		return err
 	}
 
 	target := baseURL + path
@@ -49,6 +52,8 @@ func (q *Qdrant) do(ctx context.Context, method, path string, query url.Values, 
 	if body != nil {
 		encoded, err := json.Marshal(body)
 		if err != nil {
+			q.logger.Error("encode qdrant request failed", "method", method, "path", path, "error", err)
+
 			return err
 		}
 
@@ -57,6 +62,8 @@ func (q *Qdrant) do(ctx context.Context, method, path string, query url.Values, 
 
 	request, err := http.NewRequestWithContext(ctx, method, target, requestBody)
 	if err != nil {
+		q.logger.Error("build qdrant request failed", "method", method, "path", path, "error", err)
+
 		return err
 	}
 
@@ -70,20 +77,27 @@ func (q *Qdrant) do(ctx context.Context, method, path string, query url.Values, 
 
 	response, err := q.client.Do(request)
 	if err != nil {
+		q.logger.Error("perform qdrant request failed", "method", method, "path", path, "error", err)
+
 		return err
 	}
 	defer response.Body.Close()
 
 	data, err := io.ReadAll(response.Body)
 	if err != nil {
+		q.logger.Error("read qdrant response failed", "method", method, "path", path, "status", response.StatusCode, "error", err)
+
 		return err
 	}
 
 	if response.StatusCode != http.StatusOK {
-		return &httpError{
+		httpErr := &httpError{
 			StatusCode: response.StatusCode,
 			Message:    errorMessage(data),
 		}
+		q.logger.Error("qdrant request failed", "method", method, "path", path, "status", httpErr.StatusCode, "error", httpErr)
+
+		return httpErr
 	}
 
 	if out == nil {
@@ -92,14 +106,25 @@ func (q *Qdrant) do(ctx context.Context, method, path string, query url.Values, 
 
 	var decoded envelope[json.RawMessage]
 	if err := json.Unmarshal(data, &decoded); err != nil {
+		q.logger.Error("decode qdrant response envelope failed", "method", method, "path", path, "status", response.StatusCode, "error", err)
+
 		return err
 	}
 
 	if decoded.Result == nil {
-		return fmt.Errorf("qdrant: response has no result")
+		err := fmt.Errorf("qdrant: response has no result")
+		q.logger.Error("qdrant response has no result", "method", method, "path", path, "error", err)
+
+		return err
 	}
 
-	return json.Unmarshal(*decoded.Result, out)
+	if err := json.Unmarshal(*decoded.Result, out); err != nil {
+		q.logger.Error("decode qdrant response failed", "method", method, "path", path, "error", err)
+
+		return err
+	}
+
+	return nil
 }
 
 // baseURL returns the configured host without trailing slashes, so paths can be

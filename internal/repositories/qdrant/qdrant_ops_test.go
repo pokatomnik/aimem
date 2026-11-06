@@ -491,7 +491,7 @@ func TestAPIKeyIsSentWhenConfigured(t *testing.T) {
 		host:       "http://qdrant.test",
 		apiKey:     "secret",
 		dimensions: 3,
-	}, &http.Client{Transport: transport})
+	}, &http.Client{Transport: transport}, testLogger())
 
 	if _, err := repository.GetFactsList(context.Background(), testUserID, []float32{1, 0, 0}, 5, 0.5); err != nil {
 		t.Fatalf("GetFactsList returned error: %v", err)

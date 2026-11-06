@@ -22,6 +22,8 @@ func (k *KV) RemoveFactByID(ctx context.Context, userID, factID string) error {
 
 	collection, err := k.getCollection(ctx)
 	if err != nil {
+		k.logger.Error("open collection failed", "user_id", userID, "path", k.dataPath, "error", err)
+
 		return err
 	}
 	defer collection.Close()
@@ -30,11 +32,15 @@ func (k *KV) RemoveFactByID(ctx context.Context, userID, factID string) error {
 	// xvec reports a missing key as a batch error carrying ErrNotFound, and puts
 	// the same cause into the per-key result. Both mean "nothing to delete".
 	if err != nil && !errors.Is(err, xvec.ErrNotFound) {
+		k.logger.Error("delete fact failed", "user_id", userID, "fact_id", factID, "error", err)
+
 		return err
 	}
 
 	for _, result := range results {
 		if result.Err != nil && !errors.Is(result.Err, xvec.ErrNotFound) {
+			k.logger.Error("delete fact failed", "user_id", userID, "fact_id", factID, "error", result.Err)
+
 			return result.Err
 		}
 	}

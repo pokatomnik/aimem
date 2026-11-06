@@ -25,10 +25,14 @@ func (q *Qdrant) GetFactByID(ctx context.Context, userID, factID string) (fact.F
 	// collection is worth creating for an ID that cannot be stored.
 	pointID, err := pointIDFromExternal(factID)
 	if err != nil {
+		q.logger.Warn("fact id cannot be mapped to a qdrant point", "user_id", userID, "fact_id", factID, "id_length", len(factID), "error", apperrors.ErrFactDoesNotExist)
+
 		return fact.FactFullView{}, apperrors.ErrFactDoesNotExist
 	}
 
 	if err := q.ensureCollection(ctx, userID); err != nil {
+		q.logger.Error("ensure collection failed", "user_id", userID, "error", err)
+
 		return fact.FactFullView{}, err
 	}
 
@@ -41,10 +45,14 @@ func (q *Qdrant) GetFactByID(ctx context.Context, userID, factID string) (fact.F
 	var points []retrievedPoint
 
 	if err := q.do(ctx, http.MethodPost, pathPoints(userID), nil, request, &points); err != nil {
+		q.logger.Error("fetch fact failed", "user_id", userID, "fact_id", factID, "error", err)
+
 		return fact.FactFullView{}, err
 	}
 
 	if len(points) == 0 {
+		q.logger.Warn("fact does not exist", "user_id", userID, "fact_id", factID, "error", apperrors.ErrFactDoesNotExist)
+
 		return fact.FactFullView{}, apperrors.ErrFactDoesNotExist
 	}
 
@@ -52,16 +60,22 @@ func (q *Qdrant) GetFactByID(ctx context.Context, userID, factID string) (fact.F
 
 	createdAt, err := stringField(payload, keyFieldCreatedAt)
 	if err != nil {
+		q.logger.Error("read fact created_at failed", "user_id", userID, "fact_id", factID, "field", keyFieldCreatedAt, "error", err)
+
 		return fact.FactFullView{}, err
 	}
 
 	summary, err := stringField(payload, keyFieldSummary)
 	if err != nil {
+		q.logger.Error("read fact summary failed", "user_id", userID, "fact_id", factID, "field", keyFieldSummary, "error", err)
+
 		return fact.FactFullView{}, err
 	}
 
 	content, err := stringField(payload, keyFieldFact)
 	if err != nil {
+		q.logger.Error("read fact content failed", "user_id", userID, "fact_id", factID, "field", keyFieldFact, "error", err)
+
 		return fact.FactFullView{}, err
 	}
 

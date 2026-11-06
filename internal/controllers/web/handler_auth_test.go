@@ -29,13 +29,13 @@ func (stubConfig) GetWebHTTPHost() string { return "" }
 func controllerWithAuth(t *testing.T, auth Authentication) *Controller {
 	t.Helper()
 
-	return NewWithAuth(stubConfig{}, nil, nil, nil, nil, nil, auth)
+	return NewWithAuth(stubConfig{}, nil, nil, nil, nil, nil, auth, testLogger())
 }
 
 func controllerWithoutAuth(t *testing.T, auth Authentication) *Controller {
 	t.Helper()
 
-	return NewWithoutAuth(stubConfig{}, nil, nil, nil, nil, nil, auth)
+	return NewWithoutAuth(stubConfig{}, nil, nil, nil, nil, nil, auth, testLogger())
 }
 
 // With authentication off the header is ignored entirely: the embedded backend
@@ -78,7 +78,7 @@ func TestHandleBearerAuthPutsUserID(t *testing.T) {
 		t.Fatalf("HandleBearerAuth: %v", err)
 	}
 
-	m := &Methods{authRequired: true}
+	m := &Methods{authRequired: true, logger: testLogger()}
 
 	got, err := m.getUserID(ctx)
 	if err != nil {

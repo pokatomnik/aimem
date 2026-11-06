@@ -2,3 +2,4 @@
 .env.sh
 .env
 build/
+*.log

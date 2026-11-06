@@ -97,6 +97,10 @@ export AIMEM_DIMENSIONS="768"
 
 # Optional: Qdrant users and their tokens, as a JSON array
 # export AIMEM_USERS_JSON='[{"id":"alice","tokens":["a-long-random-string"]}]'
+
+# Optional: write logs to a file instead of stderr
+# export LOG_FILE="/var/log/aimem.log"
+# export LOG_LEVEL="info"   # debug, info, warn, error
 ```
 
 Settings marked `Required` have no default and refuse an empty value; all others are optional:
@@ -113,6 +117,11 @@ Settings marked `Required` have no default and refuse an empty value; all others
 | `AIMEM_QDRANT_HOST`          | Empty (embedded backend) | Qdrant base URL. Any non-empty value switches storage from the embedded index to Qdrant.                                                     |
 | `AIMEM_QDRANT_API_KEY`       | Empty                    | Sent as the `api-key` header when set; omitted when empty.                                                                                   |
 | `AIMEM_USERS_JSON`           | Empty                    | Qdrant users and their tokens as a JSON array; ignored by the embedded backend. See [Users and tokens](#3-add-users-and-tokens-qdrant-only). |
+| `LOG_FILE`                   | Empty (stderr)           | Path to the log file. Created if missing and opened for append; when empty, logs go to stderr.                                               |
+| `LOG_LEVEL`                  | `info`                   | Minimum level written: `debug`, `info`, `warn`, or `error`. An unrecognised value falls back to `info`.                                      |
+
+`LOG_FILE` and `LOG_LEVEL` deliberately use their conventional names rather than
+the `AIMEM_` prefix; every other setting is prefixed.
 
 A typo in a variable name means that value is not applied. The three
 `Required` settings must be present and non-empty, or startup fails;
@@ -122,6 +131,14 @@ message naming the variable. Elsewhere an empty value falls back to the default.
 `recall` applies `AIMEM_TOP_K` first and then filters by
 `AIMEM_SIMILARITY_THRESHOLD`, so a query can return fewer results than the
 limit, or none at all, even when related facts exist.
+
+Logs are structured text written with `log/slog`. Every layer logs the error it is
+about to return — adapters, repositories, use cases, the HTTP handlers and the MCP
+tools — and each entry carries the `source` file and line, the operation's
+identifiers (`user_id`, `fact_id`, `status`, `path`), and the wrapped error, so it
+answers what failed, where, and why. A refusal caused by the caller is logged at
+`warn`; a fault on the server side is logged at `error`. Tokens, fact text and
+search queries are never logged.
 
 > `AIMEM_DIMENSIONS` must match the vector width of the embedding model — 768
 > for the bundled one. If you change it after the database has been created,

@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path"
@@ -24,12 +24,7 @@ import (
 	ucRemoveFactPackage "github.com/pokatomnik/gomem/internal/use_cases/removefact"
 )
 
-func scaffold(ctx context.Context) (*cobra.Command, error) {
-	cfg, err := GetConfig()
-	if err != nil {
-		log.Fatalf("Configuration init failed: %v", err)
-	}
-
+func scaffold(ctx context.Context, cfg *Config, logger *slog.Logger) (*cobra.Command, error) {
 	client := http.DefaultClient
 
 	userHome, err := os.UserHomeDir()
@@ -37,9 +32,16 @@ func scaffold(ctx context.Context) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	embeddedDB := rKVPackage.New(cfg, path.Join(userHome, ".aimem"))
-	qdrantDB := rQdrantPackage.New(cfg, client)
-	users := rUsersPackage.New(cfg)
+	backend := "embedded"
+	if cfg.RequireAuth() {
+		backend = "qdrant"
+	}
+
+	logger.Info("storage backend selected", "backend", backend)
+
+	embeddedDB := rKVPackage.New(cfg, path.Join(userHome, ".aimem"), logger)
+	qdrantDB := rQdrantPackage.New(cfg, client, logger)
+	users := rUsersPackage.New(cfg, logger)
 
 	// One decision, taken once and expressed in the constructors below: whether this
 	// deployment is per-user at all. It follows the storage backend, not the
@@ -52,18 +54,18 @@ func scaffold(ctx context.Context) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	embedder := aEmbedderPackage.New()
-	llm := aLLMPackage.New(cfg)
+	embedder := aEmbedderPackage.New(logger)
+	llm := aLLMPackage.New(cfg, logger)
 
-	rec := ucRecallPackage.New(embedder, embeddedDB, cfg)
-	fac := ucGetFactPackage.New(embeddedDB)
-	rem := ucRememberPackage.New(embedder, llm, embeddedDB)
-	del := ucRemoveFactPackage.New(embeddedDB)
+	rec := ucRecallPackage.New(embedder, embeddedDB, cfg, logger)
+	fac := ucGetFactPackage.New(embeddedDB, logger)
+	rem := ucRememberPackage.New(embedder, llm, embeddedDB, logger)
+	del := ucRemoveFactPackage.New(embeddedDB, logger)
 	if cfg.RequireAuth() {
-		rec = ucRecallPackage.New(embedder, qdrantDB, cfg)
-		fac = ucGetFactPackage.New(qdrantDB)
-		rem = ucRememberPackage.New(embedder, llm, qdrantDB)
-		del = ucRemoveFactPackage.New(qdrantDB)
+		rec = ucRecallPackage.New(embedder, qdrantDB, cfg, logger)
+		fac = ucGetFactPackage.New(qdrantDB, logger)
+		rem = ucRememberPackage.New(embedder, llm, qdrantDB, logger)
+		del = ucRemoveFactPackage.New(qdrantDB, logger)
 	}
 
 	mcpDeps := aMCPPackage.MCPDeps{
@@ -80,20 +82,22 @@ func scaffold(ctx context.Context) (*cobra.Command, error) {
 		webController *cmdWebPackage.Controller
 	)
 
+	logger.Info("authentication mode selected", "required", authRequired)
+
 	if authRequired {
-		aMCP, err = aMCPPackage.NewWithAuth(mcpDeps, users)
+		aMCP, err = aMCPPackage.NewWithAuth(mcpDeps, users, logger)
 		if err != nil {
 			return nil, err
 		}
 
-		webController = cmdWebPackage.NewWithAuth(cfg, rem, rec, fac, del, aMCP, users)
+		webController = cmdWebPackage.NewWithAuth(cfg, rem, rec, fac, del, aMCP, users, logger)
 	} else {
-		aMCP, err = aMCPPackage.NewWithoutAuth(mcpDeps)
+		aMCP, err = aMCPPackage.NewWithoutAuth(mcpDeps, logger)
 		if err != nil {
 			return nil, err
 		}
 
-		webController = cmdWebPackage.NewWithoutAuth(cfg, rem, rec, fac, del, aMCP, users)
+		webController = cmdWebPackage.NewWithoutAuth(cfg, rem, rec, fac, del, aMCP, users, logger)
 	}
 
 	web := cmdWebCLIPackage.NewWebController(webController)

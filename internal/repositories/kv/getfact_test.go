@@ -51,7 +51,7 @@ func (f *fakeCollection) Close() error { return nil }
 
 // newFakeKV builds a KV whose collection is the fake, so no database is opened.
 func newFakeKV(f *fakeCollection) *KV {
-	kv := New(testConfig{}, "")
+	kv := New(testConfig{}, "", testLogger())
 
 	kv.open = func(context.Context) (collection, error) {
 		return f, nil
@@ -214,7 +214,7 @@ func unusableIDs() []string {
 
 func TestGetFactByIDRejectsUnusableID(t *testing.T) {
 	for _, id := range unusableIDs() {
-		kv := New(testConfig{}, "")
+		kv := New(testConfig{}, "", testLogger())
 		kv.open = func(context.Context) (collection, error) {
 			t.Fatalf("opened the collection for the unusable id %q", id)
 
@@ -231,7 +231,7 @@ func TestGetFactByIDRejectsUnusableID(t *testing.T) {
 
 func TestRemoveFactByIDTreatsUnusableIDAsNoop(t *testing.T) {
 	for _, id := range unusableIDs() {
-		kv := New(testConfig{}, "")
+		kv := New(testConfig{}, "", testLogger())
 		kv.open = func(context.Context) (collection, error) {
 			t.Fatalf("opened the collection for the unusable id %q", id)
 

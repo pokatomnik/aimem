@@ -12,6 +12,8 @@ import (
 func (k *KV) GetFactsList(ctx context.Context, userID string, vector []float32, topK int, similarityThreshold float32) (facts []fact.FactListView, err error) {
 	collection, err := k.getCollection(ctx)
 	if err != nil {
+		k.logger.Error("open collection failed", "user_id", userID, "path", k.dataPath, "error", err)
+
 		return []fact.FactListView{}, err
 	}
 	defer collection.Close()
@@ -25,6 +27,8 @@ func (k *KV) GetFactsList(ctx context.Context, userID string, vector []float32, 
 		},
 	})
 	if err != nil {
+		k.logger.Error("query facts failed", "user_id", userID, "top_k", topK, "threshold", similarityThreshold, "error", err)
+
 		return nil, err
 	}
 
@@ -40,22 +44,28 @@ func (k *KV) GetFactsList(ctx context.Context, userID string, vector []float32, 
 
 		createdAt, ok := result.Fields[keyFieldCreatedAt].(string)
 		if !ok {
-			return nil, fmt.Errorf(
+			err := fmt.Errorf(
 				"%w: key: %s, value: %v is not of type string",
 				apperrors.ErrDBConvertError,
 				keyFieldCreatedAt,
 				result.Fields[keyFieldCreatedAt],
 			)
+			k.logger.Error("fact created_at is not a string", "user_id", userID, "fact_id", result.PrimaryKey, "error", err)
+
+			return nil, err
 		}
 
 		summary, ok := result.Fields[keyFieldSummary].(string)
 		if !ok {
-			return nil, fmt.Errorf(
+			err := fmt.Errorf(
 				"%w: key: %s, value: %v is not of type string",
 				apperrors.ErrDBConvertError,
 				keyFieldSummary,
 				result.Fields[keyFieldSummary],
 			)
+			k.logger.Error("fact summary is not a string", "user_id", userID, "fact_id", result.PrimaryKey, "error", err)
+
+			return nil, err
 		}
 
 		facts = append(facts, fact.FactListView{

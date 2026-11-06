@@ -50,17 +50,41 @@ Code is layered, with dependencies pointing inward:
   `embeder/engine`; `llm`: the chat completions client) and inbound input
   (`input`), plus the MCP server-side adapter (`servers/mcp`: the server, its
   tools, and the streamable-HTTP transport that exposes it).
-- `internal/shared/` — cross-cutting helpers.
+- `internal/shared/` — cross-cutting helpers, including `logging/`, which builds
+  the `log/slog` logger from `LOG_FILE` and `LOG_LEVEL` and exposes the `Logger`
+  interface every layer depends on.
 
 Runtime data lives in `~/.aimem` for the embedded backend. The embedding model
 is not data on disk: it is compiled into the binary from the checkpoint in
-`internal/adapters/embeder/gemma`. Runtime settings come from `AIMEM_*` process
-environment variables; there is no config file, and the Qdrant user list travels
-in `AIMEM_USERS_JSON` like every other setting.
+`internal/adapters/embeder/gemma`. Runtime settings come from process
+environment variables: application settings use the `AIMEM_` prefix, while the
+logging settings use the conventional `LOG_FILE` and `LOG_LEVEL` names. There is
+no config file, and the Qdrant user list travels in `AIMEM_USERS_JSON` like every
+other application setting. Logs go to stderr unless `LOG_FILE` names a file.
 
 ## Architecture Overview
 
 Three layers with dependencies pointing inward: `controllers` (Cobra, I/O) → `use_cases` (logic) → `entities` (domain types and sentinel errors). Repositories and adapters sit at the edge; use cases reach them only through unexported interfaces they declare, satisfied structurally. `scaffold` is the single composition root — a new command means two new packages and one wiring edit. Most controllers are stateless functions; the `web` controller is a struct built by `NewWithAuth(...)` or `NewWithoutAuth(...)` because it carries its dependencies, its config, and the authentication mode.
+
+## Logging
+
+Logging is a cross-cutting concern. `scaffold` builds one `*slog.Logger` and
+injects it into adapters, repositories, use cases, the web controller and the MCP
+adapter through the shared `logging.Logger` interface. Every layer logs the error
+it is about to return, on a single source line, and then returns the same error
+and values as before: logging never changes business logic. A refusal caused by
+the caller is `Warn`; a fault on our side is `Error`; startup and shutdown are
+`Info`.
+
+Every record answers three questions: that it failed, where (the automatic
+`source` file and line plus the operation named in the message), and why (the
+wrapped error and the identifiers the operation had). Never log credentials or
+user content — tokens, fact text and search queries; log their lengths instead.
+
+The logger is a required dependency, never optional: a constructor or handler
+does not substitute a discard logger for nil, so a missed wiring fails loudly
+instead of silently dropping records. Tests pass `logging.Discard()` explicitly.
+See `decisions/logging-in-every-layer.md`.
 
 ## Accepted Decisions
 

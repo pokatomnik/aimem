@@ -69,7 +69,7 @@ func connectOver(t *testing.T, srv *Server, headers http.Header) *sdk.ClientSess
 func TestHandlerPassesTheTokenToTheTool(t *testing.T) {
 	f := &fakeDeps{}
 
-	srv, err := NewWithAuth(MCPDeps{Remember: f, Recall: f, GetFact: f, RemoveFact: f}, fakeAuth{})
+	srv, err := NewWithAuth(MCPDeps{Remember: f, Recall: f, GetFact: f, RemoveFact: f}, fakeAuth{}, testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestHandlerPassesTheTokenToTheTool(t *testing.T) {
 func TestHandlerRefusesACallWithoutToken(t *testing.T) {
 	f := &fakeDeps{}
 
-	srv, err := NewWithAuth(MCPDeps{Remember: f, Recall: f, GetFact: f, RemoveFact: f}, fakeAuth{})
+	srv, err := NewWithAuth(MCPDeps{Remember: f, Recall: f, GetFact: f, RemoveFact: f}, fakeAuth{}, testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestHandlerRefusesACallWithoutToken(t *testing.T) {
 func TestHandlerAcceptsACallWithoutTokenWhenAuthIsOff(t *testing.T) {
 	f := &fakeDeps{}
 
-	srv, err := NewWithoutAuth(MCPDeps{Remember: f, Recall: f, GetFact: f, RemoveFact: f})
+	srv, err := NewWithoutAuth(MCPDeps{Remember: f, Recall: f, GetFact: f, RemoveFact: f}, testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}

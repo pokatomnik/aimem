@@ -82,7 +82,7 @@ func newTestRepository(handle func(request recordedRequest) (int, string)) (*Qdr
 	return New(fakeConfig{
 		host:       "http://qdrant.test",
 		dimensions: 3,
-	}, &http.Client{Transport: transport}), transport
+	}, &http.Client{Transport: transport}, testLogger()), transport
 }
 
 // collectionHandlers answers the collection bootstrap that every operation runs

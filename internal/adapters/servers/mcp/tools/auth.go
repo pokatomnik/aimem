@@ -11,8 +11,8 @@ import (
 
 // NewTokenAuthenticator returns the authenticator used when every call must carry
 // a valid token.
-func NewTokenAuthenticator(users mcpdeps.Authentication) mcpdeps.Authenticator {
-	return tokenAuthenticator{users: users}
+func NewTokenAuthenticator(users mcpdeps.Authentication, logger mcpdeps.Logger) mcpdeps.Authenticator {
+	return tokenAuthenticator{users: users, logger: logger}
 }
 
 // NewAnonymousAuthenticator returns the authenticator for the embedded backend,
@@ -30,26 +30,40 @@ func NewAnonymousAuthenticator() mcpdeps.Authenticator {
 // panic inside the handler and leave the call unanswered instead of returning an
 // error.
 type tokenAuthenticator struct {
-	users mcpdeps.Authentication
+	users  mcpdeps.Authentication
+	logger mcpdeps.Logger
 }
 
 func (a tokenAuthenticator) UserID(ctx context.Context, req *mcp.CallToolRequest) (string, error) {
+	tool := ""
+	if req != nil && req.Params != nil {
+		tool = req.Params.Name
+	}
+
 	if req == nil || req.Extra == nil {
+		a.logger.Warn("tool call has no request headers", "tool", tool, "error", apperrors.ErrUserNotFound)
+
 		return "", apperrors.ErrUserNotFound
 	}
 
 	authHeaderVal := req.Extra.Header.Get(server.AuthorizationHeader)
 	if authHeaderVal == "" {
+		a.logger.Warn("tool call has no bearer token", "tool", tool, "error", apperrors.ErrUserNotFound)
+
 		return "", apperrors.ErrUserNotFound
 	}
 
 	token, err := server.ParseAuthHeader(authHeaderVal)
 	if err != nil {
+		a.logger.Warn("tool call has a malformed bearer token", "tool", tool, "error", err)
+
 		return "", apperrors.ErrUserNotFound
 	}
 
 	u, err := a.users.GetUserByToken(ctx, token)
 	if err != nil {
+		a.logger.Warn("tool call has an unknown token", "tool", tool, "error", err)
+
 		return "", apperrors.ErrUserNotFound
 	}
 

@@ -85,7 +85,7 @@ func connect(t *testing.T, build buildFunc, deps MCPDeps) (*sdk.ClientSession, c
 // in-memory transport carries no headers at all, so this exercises the refusing
 // side of the answer.
 func withAuth(deps MCPDeps) (*sdk.Server, error) {
-	srv, err := NewWithAuth(deps, fakeAuth{})
+	srv, err := NewWithAuth(deps, fakeAuth{}, testLogger())
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func withAuth(deps MCPDeps) (*sdk.Server, error) {
 
 // withoutAuth is the production wiring for the embedded backend.
 func withoutAuth(deps MCPDeps) (*sdk.Server, error) {
-	srv, err := NewWithoutAuth(deps)
+	srv, err := NewWithoutAuth(deps, testLogger())
 	if err != nil {
 		return nil, err
 	}

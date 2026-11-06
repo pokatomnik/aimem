@@ -6,6 +6,7 @@ import (
 	"github.com/pokatomnik/gomem/internal/entities/apperrors"
 	"github.com/pokatomnik/gomem/internal/entities/embeddings"
 	"github.com/pokatomnik/gomem/internal/entities/fact"
+	"github.com/pokatomnik/gomem/internal/shared/logging"
 )
 
 type (
@@ -23,23 +24,28 @@ type (
 	}
 
 	Recall struct {
-		e embedder
-		s store
-		c config
+		e      embedder
+		s      store
+		c      config
+		logger logging.Logger
 	}
 )
 
-func New(e embedder, s store, c config) *Recall {
-	return &Recall{e, s, c}
+func New(e embedder, s store, c config, logger logging.Logger) *Recall {
+	return &Recall{e: e, s: s, c: c, logger: logger}
 }
 
 func (r *Recall) Recall(ctx context.Context, userID string, question string) ([]fact.FactListView, error) {
 	embeddings, err := r.e.GetEmbeddings(ctx, question)
 	if err != nil {
+		r.logger.Error("get question embeddings failed", "user_id", userID, "question_length", len(question), "error", err)
+
 		return []fact.FactListView{}, err
 	}
 
 	if len(embeddings) == 0 {
+		r.logger.Error("question embeddings are empty", "user_id", userID, "question_length", len(question), "error", apperrors.ErrEmptyEmbeddings)
+
 		return []fact.FactListView{}, apperrors.ErrEmptyEmbeddings
 	}
 
@@ -51,6 +57,8 @@ func (r *Recall) Recall(ctx context.Context, userID string, question string) ([]
 		r.c.GetSimilarityThreshold(),
 	)
 	if err != nil {
+		r.logger.Error("get facts list failed", "user_id", userID, "top_k", r.c.GetTopK(), "threshold", r.c.GetSimilarityThreshold(), "error", err)
+
 		return []fact.FactListView{}, err
 	}
 

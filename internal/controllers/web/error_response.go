@@ -13,14 +13,77 @@ import (
 )
 
 // ServerOptions makes the generated server answer with appError JSON instead
-// of ogen's text/plain defaults. Pass them to server.NewServer:
+// of ogen's text/plain defaults. Pass them to server.NewServer with the process
+// logger:
 //
-//	server.NewServer(methods, security, web.ServerOptions()...)
-func ServerOptions() []server.ServerOption {
+//	server.NewServer(methods, security, web.ServerOptions(logger)...)
+func ServerOptions(l logger) []server.ServerOption {
 	return []server.ServerOption{
-		server.WithErrorHandler(RequestErrorHandler),
-		server.WithNotFound(NotFoundHandler),
+		server.WithErrorHandler(requestErrorHandler(l)),
+		server.WithNotFound(notFoundHandler(l)),
 	}
+}
+
+// requestErrorHandler logs a failure and then answers exactly as
+// RequestErrorHandler does.
+//
+// Logging lives here, not in the operation handlers, so every error that becomes
+// a response is recorded once, with the method and path that only the HTTP edge
+// knows. A failure on our side is an error; a request we refuse is a warning.
+func requestErrorHandler(l logger) server.ErrorHandler {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, err error) {
+		status, code := classifyError(err)
+		logRequestError(l, r, status, code, err)
+
+		RequestErrorHandler(ctx, w, r, err)
+	}
+}
+
+// notFoundHandler logs a request the spec does not describe. It is a warning:
+// the caller asked for a route this server never had.
+func notFoundHandler(l logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if l != nil {
+			l.Warn("route not found", "method", r.Method, "path", r.URL.Path, "status", http.StatusNotFound)
+		}
+
+		NotFoundHandler(w, r)
+	}
+}
+
+// classifyError picks the status and body code for err. It is the single
+// classification used both to answer and to log, so the two cannot disagree
+// about whether a failure was the caller's fault.
+func classifyError(err error) (int, server.ErrorCode) {
+	if isRequestError(err) {
+		return http.StatusBadRequest, server.ErrorCodeBADREQUEST
+	}
+
+	return mapDomainError(err)
+}
+
+// logRequestError records a failed request at the severity its status deserves.
+// A nil logger is tolerated so the handlers can be exercised without one.
+func logRequestError(l logger, r *http.Request, status int, code server.ErrorCode, err error) {
+	if l == nil {
+		return
+	}
+
+	args := []any{
+		"method", r.Method,
+		"path", r.URL.Path,
+		"status", status,
+		"code", code,
+		"error", err,
+	}
+
+	if status >= http.StatusInternalServerError {
+		l.Error("request failed", args...)
+
+		return
+	}
+
+	l.Warn("request rejected", args...)
 }
 
 // RequestErrorHandler handles every failure the generated server cannot turn
@@ -45,16 +108,12 @@ func RequestErrorHandler(
 	r *http.Request,
 	err error,
 ) {
-	if isRequestError(err) {
-		writeAppError(w, http.StatusBadRequest, server.ErrorCodeBADREQUEST, err.Error())
-		return
-	}
-
-	// Domain and unknown errors alike: mapDomainError picks the right status for
-	// a known cause and falls back to 500 for anything nobody anticipated, so a
-	// server bug is never reported as a client error.
-	code, ec := mapDomainError(err)
-	writeAppError(w, code, ec, err.Error())
+	// A request error is 400; domain and unknown errors alike go through
+	// mapDomainError, which picks the right status for a known cause and falls
+	// back to 500 for anything nobody anticipated, so a server bug is never
+	// reported as a client error.
+	status, code := classifyError(err)
+	writeAppError(w, status, code, err.Error())
 }
 
 // NotFoundHandler answers requests whose path is absent from the spec.

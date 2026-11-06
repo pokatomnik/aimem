@@ -1,10 +1,12 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -273,9 +275,71 @@ func TestWriteAppErrorEmptyMessage(t *testing.T) {
 // controller.go does, so a nil or rejected option fails here rather than at
 // runtime.
 func TestServerOptionsApply(t *testing.T) {
-	_, err := server.NewServer(&Methods{}, stubSecurity{}, ServerOptions()...)
+	_, err := server.NewServer(&Methods{logger: testLogger()}, stubSecurity{}, ServerOptions(testLogger())...)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
+	}
+}
+
+// The log is the operator's only view of a failure, so the severity has to say
+// whose fault it was: a refused request is a warning, a fault on our side is an
+// error. The error text and the mapped status must survive into the record.
+func TestRequestErrorHandlerLogsAtTheRightSeverity(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantLevel  string
+		wantStatus string
+		// wantText is a stable substring of err.Error(). The full text of a
+		// DecodeRequestError spans lines, and slog escapes the newlines, so the
+		// assertion is made on a fragment rather than on err.Error() itself.
+		wantText string
+	}{
+		{
+			name:       "a refused request is a warning",
+			err:        apperrors.ErrFactDoesNotExist,
+			wantLevel:  "level=WARN",
+			wantStatus: "status=404",
+			wantText:   "document does not exist",
+		},
+		{
+			name:       "a malformed request is a warning too",
+			err:        &ogenerrors.DecodeRequestError{Err: errors.New("unexpected token")},
+			wantLevel:  "level=WARN",
+			wantStatus: "status=400",
+			wantText:   "unexpected token",
+		},
+		{
+			name:       "a fault on our side is an error",
+			err:        apperrors.ErrDBConvertError,
+			wantLevel:  "level=ERROR",
+			wantStatus: "status=500",
+			wantText:   "db convert error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			l := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+			rec := httptest.NewRecorder()
+			requestErrorHandler(l)(context.Background(), rec, httptest.NewRequest(http.MethodGet, "/api/v1/fact/x", nil), tt.err)
+
+			out := buf.String()
+			if !strings.Contains(out, tt.wantLevel) {
+				t.Errorf("log does not contain %q: %q", tt.wantLevel, out)
+			}
+
+			if !strings.Contains(out, tt.wantStatus) {
+				t.Errorf("log does not contain %q: %q", tt.wantStatus, out)
+			}
+
+			if !strings.Contains(out, tt.wantText) {
+				t.Errorf("log does not contain the error text %q: %q", tt.wantText, out)
+			}
+		})
 	}
 }
 

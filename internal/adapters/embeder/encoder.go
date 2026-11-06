@@ -12,6 +12,8 @@ func (e *Embedder) getEncoder() (*engine.Encoder, error) {
 
 	encoder, err := engine.LoadEncoder(gemmaDir, gemmaDirName)
 	if err != nil {
+		e.logger.Error("load encoder failed", "checkpoint", gemmaDirName, "error", err)
+
 		return nil, err
 	}
 

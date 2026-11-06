@@ -16,7 +16,7 @@ import (
 // required is the authenticator most tests use: every call must carry a valid
 // token, because that is the production wiring for Qdrant.
 func required(f *fakeDeps) mcpdeps.Authenticator {
-	return NewTokenAuthenticator(f)
+	return NewTokenAuthenticator(f, testLogger())
 }
 
 // anonymous stands in for the embedded deployment: no credentials are read at all.
@@ -93,7 +93,7 @@ func reqWithToken(value string) *sdk.CallToolRequest {
 func TestRecallReturnsSummariesOnly(t *testing.T) {
 	f := &fakeDeps{}
 
-	_, handler, err := ToolRecall(required(f), f)
+	_, handler, err := ToolRecall(required(f), f, testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestRecallReturnsSummariesOnly(t *testing.T) {
 func TestReadFactReturnsFullText(t *testing.T) {
 	f := &fakeDeps{}
 
-	_, handler, err := ToolGetFact(required(f), f)
+	_, handler, err := ToolGetFact(required(f), f, testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestUserResolvedFromTokenReachesStore(t *testing.T) {
 		{
 			name: "remember",
 			run: func(f *fakeDeps) error {
-				_, h, err := ToolRemember(required(f), f)
+				_, h, err := ToolRemember(required(f), f, testLogger())
 				if err != nil {
 					return err
 				}
@@ -159,7 +159,7 @@ func TestUserResolvedFromTokenReachesStore(t *testing.T) {
 		{
 			name: "recall",
 			run: func(f *fakeDeps) error {
-				_, h, err := ToolRecall(required(f), f)
+				_, h, err := ToolRecall(required(f), f, testLogger())
 				if err != nil {
 					return err
 				}
@@ -170,7 +170,7 @@ func TestUserResolvedFromTokenReachesStore(t *testing.T) {
 		{
 			name: "read_fact",
 			run: func(f *fakeDeps) error {
-				_, h, err := ToolGetFact(required(f), f)
+				_, h, err := ToolGetFact(required(f), f, testLogger())
 				if err != nil {
 					return err
 				}
@@ -181,7 +181,7 @@ func TestUserResolvedFromTokenReachesStore(t *testing.T) {
 		{
 			name: "remove_fact_by_id",
 			run: func(f *fakeDeps) error {
-				_, h, err := ToolRemoveFact(required(f), f)
+				_, h, err := ToolRemoveFact(required(f), f, testLogger())
 				if err != nil {
 					return err
 				}
@@ -239,7 +239,7 @@ func TestToolRefusesWithoutValidToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, handler, err := ToolRemember(required(tt.store), tt.store)
+			_, handler, err := ToolRemember(required(tt.store), tt.store, testLogger())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -262,7 +262,7 @@ func TestToolRefusesWithoutValidToken(t *testing.T) {
 func TestToolRunsAnonymouslyWhenAuthIsOff(t *testing.T) {
 	f := &fakeDeps{}
 
-	_, handler, err := ToolRemember(anonymous(), f)
+	_, handler, err := ToolRemember(anonymous(), f, testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +304,7 @@ func TestTokenAuthenticatorRejectsEveryUnusableCredential(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := &fakeDeps{}
 
-			if _, err := NewTokenAuthenticator(f).UserID(context.Background(), tt.req); !errors.Is(err, apperrors.ErrUserNotFound) {
+			if _, err := NewTokenAuthenticator(f, testLogger()).UserID(context.Background(), tt.req); !errors.Is(err, apperrors.ErrUserNotFound) {
 				t.Errorf("err = %v, want %v", err, apperrors.ErrUserNotFound)
 			}
 

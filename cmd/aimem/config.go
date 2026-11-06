@@ -13,6 +13,8 @@ type Config struct {
 	QdrantHost          string  `env:"AIMEM_QDRANT_HOST"`
 	QdrantAPIKey        string  `env:"AIMEM_QDRANT_API_KEY"`
 	UsersJSON           string  `env:"AIMEM_USERS_JSON"`
+	LogFile             string  `env:"LOG_FILE"`
+	LogLevel            string  `env:"LOG_LEVEL" envDefault:"info"`
 }
 
 func GetConfig() (*Config, error) {
@@ -83,4 +85,12 @@ func (c *Config) GetQdrantAPIKey() string {
 
 func (c *Config) GetUsersJSON() string {
 	return c.UsersJSON
+}
+
+func (c *Config) GetLogFile() string {
+	return c.LogFile
+}
+
+func (c *Config) GetLogLevel() string {
+	return c.LogLevel
 }

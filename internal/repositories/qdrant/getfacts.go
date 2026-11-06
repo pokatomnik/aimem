@@ -23,10 +23,15 @@ import (
 func (q *Qdrant) GetFactsList(ctx context.Context, userID string, vector []float32, topK int, similarityThreshold float32) (facts []fact.FactListView, err error) {
 	// xvec rejects a non-positive TopK too; Qdrant's limit has the same floor.
 	if topK <= 0 {
-		return nil, fmt.Errorf("topK must be positive, got %d", topK)
+		err := fmt.Errorf("topK must be positive, got %d", topK)
+		q.logger.Warn("topK must be positive", "user_id", userID, "top_k", topK, "error", err)
+
+		return nil, err
 	}
 
 	if err := q.ensureCollection(ctx, userID); err != nil {
+		q.logger.Error("ensure collection failed", "user_id", userID, "error", err)
+
 		return []fact.FactListView{}, err
 	}
 
@@ -41,6 +46,8 @@ func (q *Qdrant) GetFactsList(ctx context.Context, userID string, vector []float
 	var response queryPointsResponse
 
 	if err := q.do(ctx, http.MethodPost, pathPointsQuery(userID), nil, request, &response); err != nil {
+		q.logger.Error("query facts failed", "user_id", userID, "top_k", topK, "threshold", similarityThreshold, "error", err)
+
 		return nil, err
 	}
 
@@ -53,11 +60,15 @@ func (q *Qdrant) GetFactsList(ctx context.Context, userID string, vector []float
 
 		createdAt, err := stringField(point.Payload, keyFieldCreatedAt)
 		if err != nil {
+			q.logger.Error("read fact created_at failed", "user_id", userID, "fact_id", point.ID.UUID, "field", keyFieldCreatedAt, "error", err)
+
 			return nil, err
 		}
 
 		summary, err := stringField(point.Payload, keyFieldSummary)
 		if err != nil {
+			q.logger.Error("read fact summary failed", "user_id", userID, "fact_id", point.ID.UUID, "field", keyFieldSummary, "error", err)
+
 			return nil, err
 		}
 

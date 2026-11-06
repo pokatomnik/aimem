@@ -11,11 +11,15 @@ import (
 
 func (k *KV) GetFactByID(ctx context.Context, userID, factID string) (fact.FactFullView, error) {
 	if !validFactID(factID) {
+		k.logger.Warn("fact id cannot name a stored fact", "user_id", userID, "fact_id", factID, "id_length", len(factID), "error", apperrors.ErrFactDoesNotExist)
+
 		return fact.FactFullView{}, apperrors.ErrFactDoesNotExist
 	}
 
 	collection, err := k.getCollection(ctx)
 	if err != nil {
+		k.logger.Error("open collection failed", "user_id", userID, "path", k.dataPath, "error", err)
+
 		return fact.FactFullView{}, err
 	}
 	defer collection.Close()
@@ -28,10 +32,14 @@ func (k *KV) GetFactByID(ctx context.Context, userID, factID string) (fact.FactF
 		},
 	)
 	if err != nil {
+		k.logger.Error("fetch fact failed", "user_id", userID, "fact_id", factID, "error", err)
+
 		return fact.FactFullView{}, err
 	}
 
 	if len(result) == 0 || result[0] == nil {
+		k.logger.Warn("fact does not exist", "user_id", userID, "fact_id", factID, "error", apperrors.ErrFactDoesNotExist)
+
 		return fact.FactFullView{}, apperrors.ErrFactDoesNotExist
 	}
 
@@ -39,32 +47,41 @@ func (k *KV) GetFactByID(ctx context.Context, userID, factID string) (fact.FactF
 
 	createdAt, ok := doc.Fields[keyFieldCreatedAt].(string)
 	if !ok {
-		return fact.FactFullView{}, fmt.Errorf(
+		err := fmt.Errorf(
 			"%w: key: %s, value: %v is not of type string",
 			apperrors.ErrDBConvertError,
 			keyFieldCreatedAt,
 			doc.Fields[keyFieldCreatedAt],
 		)
+		k.logger.Error("fact created_at is not a string", "user_id", userID, "fact_id", factID, "error", err)
+
+		return fact.FactFullView{}, err
 	}
 
 	summary, ok := doc.Fields[keyFieldSummary].(string)
 	if !ok {
-		return fact.FactFullView{}, fmt.Errorf(
+		err := fmt.Errorf(
 			"%w: key: %s, value: %v is not of type string",
 			apperrors.ErrDBConvertError,
 			keyFieldSummary,
 			doc.Fields[keyFieldSummary],
 		)
+		k.logger.Error("fact summary is not a string", "user_id", userID, "fact_id", factID, "error", err)
+
+		return fact.FactFullView{}, err
 	}
 
 	content, ok := doc.Fields[keyFieldFact].(string)
 	if !ok {
-		return fact.FactFullView{}, fmt.Errorf(
+		err := fmt.Errorf(
 			"%w: key: %s, value: %v is not of type string",
 			apperrors.ErrDBConvertError,
 			keyFieldFact,
 			doc.Fields[keyFieldFact],
 		)
+		k.logger.Error("fact content is not a string", "user_id", userID, "fact_id", factID, "error", err)
+
+		return fact.FactFullView{}, err
 	}
 
 	return fact.FactFullView{
