@@ -1,16 +1,14 @@
 package embeder
 
 import (
-	"context"
-
 	"github.com/townsendmerino/goinfer/embeddinggemma2"
 )
 
-func (e *Embedder) getEncoder(ctx context.Context) (*embeddinggemma2.Encoder, error) {
+func (e *Embedder) getEncoder() (*embeddinggemma2.Encoder, error) {
 	e.mx.Lock()
 	defer e.mx.Unlock()
 
-	if err := ensureModel(ctx, e.modelDir); err != nil {
+	if err := ensureModel(e.modelDir); err != nil {
 		return nil, err
 	}
 

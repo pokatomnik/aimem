@@ -139,16 +139,16 @@ func decodeAddFactResponse(resp *http.Response) (res AddFactRes, _ error) {
 			var wrapper UnauthorizedHeaders
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "WWW-Authenticate" header.
+			// Parse "Www-Authenticate" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "WWW-Authenticate",
+					Name:    "Www-Authenticate",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotWWWAuthenticateVal string
+							var wrapperDotWwwAuthenticateVal string
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -160,12 +160,12 @@ func decodeAddFactResponse(resp *http.Response) (res AddFactRes, _ error) {
 									return err
 								}
 
-								wrapperDotWWWAuthenticateVal = c
+								wrapperDotWwwAuthenticateVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.WWWAuthenticate.SetTo(wrapperDotWWWAuthenticateVal)
+							wrapper.WwwAuthenticate.SetTo(wrapperDotWwwAuthenticateVal)
 							return nil
 						}); err != nil {
 							return err
@@ -173,7 +173,7 @@ func decodeAddFactResponse(resp *http.Response) (res AddFactRes, _ error) {
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse WWW-Authenticate header")
+					return res, errors.Wrap(err, "parse Www-Authenticate header")
 				}
 			}
 			return &wrapper, nil
@@ -315,16 +315,16 @@ func decodeGetFactByIDResponse(resp *http.Response) (res GetFactByIDRes, _ error
 			var wrapper UnauthorizedHeaders
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "WWW-Authenticate" header.
+			// Parse "Www-Authenticate" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "WWW-Authenticate",
+					Name:    "Www-Authenticate",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotWWWAuthenticateVal string
+							var wrapperDotWwwAuthenticateVal string
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -336,12 +336,12 @@ func decodeGetFactByIDResponse(resp *http.Response) (res GetFactByIDRes, _ error
 									return err
 								}
 
-								wrapperDotWWWAuthenticateVal = c
+								wrapperDotWwwAuthenticateVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.WWWAuthenticate.SetTo(wrapperDotWWWAuthenticateVal)
+							wrapper.WwwAuthenticate.SetTo(wrapperDotWwwAuthenticateVal)
 							return nil
 						}); err != nil {
 							return err
@@ -349,7 +349,7 @@ func decodeGetFactByIDResponse(resp *http.Response) (res GetFactByIDRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse WWW-Authenticate header")
+					return res, errors.Wrap(err, "parse Www-Authenticate header")
 				}
 			}
 			return &wrapper, nil
@@ -535,16 +535,16 @@ func decodeRemoveFactByIDResponse(resp *http.Response) (res RemoveFactByIDRes, _
 			var wrapper UnauthorizedHeaders
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "WWW-Authenticate" header.
+			// Parse "Www-Authenticate" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "WWW-Authenticate",
+					Name:    "Www-Authenticate",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotWWWAuthenticateVal string
+							var wrapperDotWwwAuthenticateVal string
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -556,12 +556,12 @@ func decodeRemoveFactByIDResponse(resp *http.Response) (res RemoveFactByIDRes, _
 									return err
 								}
 
-								wrapperDotWWWAuthenticateVal = c
+								wrapperDotWwwAuthenticateVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.WWWAuthenticate.SetTo(wrapperDotWWWAuthenticateVal)
+							wrapper.WwwAuthenticate.SetTo(wrapperDotWwwAuthenticateVal)
 							return nil
 						}); err != nil {
 							return err
@@ -569,7 +569,7 @@ func decodeRemoveFactByIDResponse(resp *http.Response) (res RemoveFactByIDRes, _
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse WWW-Authenticate header")
+					return res, errors.Wrap(err, "parse Www-Authenticate header")
 				}
 			}
 			return &wrapper, nil
@@ -669,16 +669,16 @@ func decodeSearchResponse(resp *http.Response) (res SearchRes, _ error) {
 			var wrapper UnauthorizedHeaders
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "WWW-Authenticate" header.
+			// Parse "Www-Authenticate" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "WWW-Authenticate",
+					Name:    "Www-Authenticate",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotWWWAuthenticateVal string
+							var wrapperDotWwwAuthenticateVal string
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -690,12 +690,12 @@ func decodeSearchResponse(resp *http.Response) (res SearchRes, _ error) {
 									return err
 								}
 
-								wrapperDotWWWAuthenticateVal = c
+								wrapperDotWwwAuthenticateVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.WWWAuthenticate.SetTo(wrapperDotWWWAuthenticateVal)
+							wrapper.WwwAuthenticate.SetTo(wrapperDotWwwAuthenticateVal)
 							return nil
 						}); err != nil {
 							return err
@@ -703,7 +703,7 @@ func decodeSearchResponse(resp *http.Response) (res SearchRes, _ error) {
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse WWW-Authenticate header")
+					return res, errors.Wrap(err, "parse Www-Authenticate header")
 				}
 			}
 			return &wrapper, nil

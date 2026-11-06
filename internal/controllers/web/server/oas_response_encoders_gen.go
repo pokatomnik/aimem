@@ -46,19 +46,19 @@ func encodeAddFactResponse(response AddFactRes, w http.ResponseWriter, span trac
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "WWW-Authenticate" header.
+			// Encode "Www-Authenticate" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "WWW-Authenticate",
+					Name:    "Www-Authenticate",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					if val, ok := response.WWWAuthenticate.Get(); ok {
+					if val, ok := response.WwwAuthenticate.Get(); ok {
 						return e.EncodeValue(conv.StringToString(val))
 					}
 					return nil
 				}); err != nil {
-					return errors.Wrap(err, "encode WWW-Authenticate header")
+					return errors.Wrap(err, "encode Www-Authenticate header")
 				}
 			}
 		}
@@ -120,19 +120,19 @@ func encodeGetFactByIDResponse(response GetFactByIDRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "WWW-Authenticate" header.
+			// Encode "Www-Authenticate" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "WWW-Authenticate",
+					Name:    "Www-Authenticate",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					if val, ok := response.WWWAuthenticate.Get(); ok {
+					if val, ok := response.WwwAuthenticate.Get(); ok {
 						return e.EncodeValue(conv.StringToString(val))
 					}
 					return nil
 				}); err != nil {
-					return errors.Wrap(err, "encode WWW-Authenticate header")
+					return errors.Wrap(err, "encode Www-Authenticate header")
 				}
 			}
 		}
@@ -206,19 +206,19 @@ func encodeRemoveFactByIDResponse(response RemoveFactByIDRes, w http.ResponseWri
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "WWW-Authenticate" header.
+			// Encode "Www-Authenticate" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "WWW-Authenticate",
+					Name:    "Www-Authenticate",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					if val, ok := response.WWWAuthenticate.Get(); ok {
+					if val, ok := response.WwwAuthenticate.Get(); ok {
 						return e.EncodeValue(conv.StringToString(val))
 					}
 					return nil
 				}); err != nil {
-					return errors.Wrap(err, "encode WWW-Authenticate header")
+					return errors.Wrap(err, "encode Www-Authenticate header")
 				}
 			}
 		}
@@ -257,19 +257,19 @@ func encodeSearchResponse(response SearchRes, w http.ResponseWriter, span trace.
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "WWW-Authenticate" header.
+			// Encode "Www-Authenticate" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "WWW-Authenticate",
+					Name:    "Www-Authenticate",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					if val, ok := response.WWWAuthenticate.Get(); ok {
+					if val, ok := response.WwwAuthenticate.Get(); ok {
 						return e.EncodeValue(conv.StringToString(val))
 					}
 					return nil
 				}); err != nil {
-					return errors.Wrap(err, "encode WWW-Authenticate header")
+					return errors.Wrap(err, "encode Www-Authenticate header")
 				}
 			}
 		}

@@ -179,7 +179,7 @@ components:
     unauthorized:
       description: The Authorization header is missing or its token is not recognised
       headers:
-        WWW-Authenticate:
+        Www-Authenticate:
           description: Challenge naming the expected scheme
           schema:
             type: string

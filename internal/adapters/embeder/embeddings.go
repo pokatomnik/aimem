@@ -6,8 +6,8 @@ import (
 	"github.com/pokatomnik/gomem/internal/entities/embeddings"
 )
 
-func (e *Embedder) GetEmbeddings(ctx context.Context, text string) (embeddings.Embeddings, error) {
-	enc, err := e.getEncoder(ctx)
+func (e *Embedder) GetEmbeddings(_ context.Context, text string) (embeddings.Embeddings, error) {
+	enc, err := e.getEncoder()
 	if err != nil {
 		return embeddings.Embeddings{}, err
 	}

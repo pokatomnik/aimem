@@ -145,7 +145,7 @@ export interface components {
         unauthorized: {
             headers: {
                 /** @description Challenge naming the expected scheme */
-                "WWW-Authenticate"?: string;
+                "Www-Authenticate"?: string;
                 [name: string]: unknown;
             };
             content: {

@@ -1,15 +1,12 @@
 package embeder
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 )
-
-const modelURL = "https://huggingface.co/google/embeddinggemma-2/resolve/main/"
 
 var modelFiles = []string{
 	"config.json",
@@ -18,7 +15,7 @@ var modelFiles = []string{
 	"model.safetensors",
 }
 
-func ensureModel(ctx context.Context, dir string) error {
+func ensureModel(dir string) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -34,7 +31,7 @@ func ensureModel(ctx context.Context, dir string) error {
 			return err
 		}
 
-		if err := downloadFile(ctx, modelURL+name, path); err != nil {
+		if err := unpackFile(name, path); err != nil {
 			return fmt.Errorf("%s: %w", name, err)
 		}
 	}
@@ -42,42 +39,22 @@ func ensureModel(ctx context.Context, dir string) error {
 	return nil
 }
 
-func downloadFile(
-	ctx context.Context,
-	url string,
-	dest string,
-) error {
-	req, err := http.NewRequestWithContext(
-		ctx, http.MethodGet, url, nil,
-	)
+func unpackFile(name string, dest string) error {
+	weightsFile, err := gemmaDir.Open(path.Join(gemmaDirName, name))
 	if err != nil {
 		return err
 	}
+	defer weightsFile.Close()
 
-	resp, err := http.DefaultClient.Do(req)
+	destFile, err := os.Create(dest)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer destFile.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %s", resp.Status)
+	if _, err := io.Copy(destFile, weightsFile); err != nil {
+		return fmt.Errorf("Cannot unpack weights file %s with error %w", name, err)
 	}
 
-	tmp, err := os.CreateTemp(filepath.Dir(dest), ".model-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	defer tmp.Close()
-
-	if _, err := io.Copy(tmp, resp.Body); err != nil {
-		return err
-	}
-
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-
-	return os.Rename(tmp.Name(), dest)
+	return nil
 }

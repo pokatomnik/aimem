@@ -485,13 +485,13 @@ func (s *SearchResultItem) SetSummary(val string) {
 
 // UnauthorizedHeaders wraps AppError with response headers.
 type UnauthorizedHeaders struct {
-	WWWAuthenticate OptString
+	WwwAuthenticate OptString
 	Response        AppError
 }
 
-// GetWWWAuthenticate returns the value of WWWAuthenticate.
-func (s *UnauthorizedHeaders) GetWWWAuthenticate() OptString {
-	return s.WWWAuthenticate
+// GetWwwAuthenticate returns the value of WwwAuthenticate.
+func (s *UnauthorizedHeaders) GetWwwAuthenticate() OptString {
+	return s.WwwAuthenticate
 }
 
 // GetResponse returns the value of Response.
@@ -499,9 +499,9 @@ func (s *UnauthorizedHeaders) GetResponse() AppError {
 	return s.Response
 }
 
-// SetWWWAuthenticate sets the value of WWWAuthenticate.
-func (s *UnauthorizedHeaders) SetWWWAuthenticate(val OptString) {
-	s.WWWAuthenticate = val
+// SetWwwAuthenticate sets the value of WwwAuthenticate.
+func (s *UnauthorizedHeaders) SetWwwAuthenticate(val OptString) {
+	s.WwwAuthenticate = val
 }
 
 // SetResponse sets the value of Response.
