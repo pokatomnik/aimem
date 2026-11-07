@@ -99,7 +99,7 @@ Check these before trusting any sentence in the docs. Each one has already been 
 
 - Write for the model choosing a tool, not for a reader browsing the code. State when to use it, what it returns, and how it differs from the neighboring tool.
 - Prefer a decision rule over a prohibition: "if the summary is too vague, call `read_fact`" beats "don't guess".
-- Keep it short. Every sentence competes for the model's attention; this file was cut from 86 to 67 lines for a reason.
+- Limit each MCP tool description to 20 words; keep the shared conflict-resolution workflow in `INSTRUCTIONS.md`, because repeating it per tool wastes model context.
 - Mention a limit only if it is enforced in code. Do not promise thresholds, filtering, or ordering that does not exist.
 - Update `server_test.go` when you change a phrase a test asserts on, and prefer stable substrings over markdown-formatted ones (`**not** needed` breaks a search for `not needed`).
 
@@ -123,6 +123,7 @@ Check these before trusting any sentence in the docs. Each one has already been 
 ### `README.md`
 
 - It is user-facing: installation, configuration, commands. Every command it lists must exist; every config key must be real.
+- Treat claims of no outbound requests as stale text when configured summarization or Qdrant endpoints contradict them, and state local versus remote destinations explicitly, because either server can run off the user's machine.
 - Keep prose tight; the existing style is one sentence per idea.
 
 ## Recording a correction

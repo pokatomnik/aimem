@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -77,6 +78,7 @@ func TestConfigEnvTags(t *testing.T) {
 		"LLMHost":             "AIMEM_LLM_HOST,notEmpty",
 		"LLMAPIKey":           "AIMEM_LLM_API_KEY",
 		"SummarizationModel":  "AIMEM_SUMMARIZATION_MODEL,notEmpty",
+		"EmbeddingModelTTL":   "AIMEM_MODEL_MEMORY_TTL",
 		"TopK":                "AIMEM_TOP_K",
 		"SimilarityThreshold": "AIMEM_SIMILARITY_THRESHOLD",
 		"Dimensions":          "AIMEM_DIMENSIONS,notEmpty",
@@ -110,6 +112,7 @@ func TestConfigEnvDefaults(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
+		"EmbeddingModelTTL":   "10s",
 		"TopK":                "5",
 		"SimilarityThreshold": "0.7",
 		"WebHTTPHost":         "127.0.0.1:8888",
@@ -197,6 +200,7 @@ func TestGetConfigReadsEverySetting(t *testing.T) {
 
 	environ := minimalEnvironment()
 	environ["AIMEM_LLM_API_KEY"] = "secret"
+	environ["AIMEM_MODEL_MEMORY_TTL"] = "30s"
 	environ["AIMEM_TOP_K"] = "7"
 	environ["AIMEM_SIMILARITY_THRESHOLD"] = "0.4"
 	environ["AIMEM_WEB_HTTP_HOST"] = "0.0.0.0:9000"
@@ -215,6 +219,7 @@ func TestGetConfigReadsEverySetting(t *testing.T) {
 		"LLMHost":             {cfg.GetLLMHost(), "http://127.0.0.1:11434/v1"},
 		"LLMAPIKey":           {cfg.GetLLMAPIKey(), "secret"},
 		"SummarizationModel":  {cfg.GetSummarizationModel(), "gemma4:e2b"},
+		"EmbeddingModelTTL":   {cfg.GetEmbeddingModelTTL(), 30 * time.Second},
 		"TopK":                {cfg.GetTopK(), 7},
 		"SimilarityThreshold": {cfg.GetSimilarityThreshold(), float32(0.4)},
 		"Dimensions":          {cfg.GetDimensions(), uint32(768)},
@@ -244,6 +249,8 @@ func TestGetConfigDefaults(t *testing.T) {
 	}
 
 	switch {
+	case cfg.GetEmbeddingModelTTL() != 10*time.Second:
+		t.Errorf("GetEmbeddingModelTTL() = %v, want 10s", cfg.GetEmbeddingModelTTL())
 	case cfg.GetTopK() != 5:
 		t.Errorf("GetTopK() = %d, want 5", cfg.GetTopK())
 	case cfg.GetSimilarityThreshold() != 0.7:
@@ -321,6 +328,7 @@ func TestGetConfigEmptyValueFallsBackToTheDefault(t *testing.T) {
 	t.Parallel()
 
 	environ := minimalEnvironment()
+	environ["AIMEM_MODEL_MEMORY_TTL"] = ""
 	environ["AIMEM_TOP_K"] = ""
 	environ["AIMEM_SIMILARITY_THRESHOLD"] = ""
 	environ["AIMEM_WEB_HTTP_HOST"] = ""
@@ -333,6 +341,8 @@ func TestGetConfigEmptyValueFallsBackToTheDefault(t *testing.T) {
 	}
 
 	switch {
+	case cfg.GetEmbeddingModelTTL() != 10*time.Second:
+		t.Errorf("GetEmbeddingModelTTL() = %v, want the default 10s", cfg.GetEmbeddingModelTTL())
 	case cfg.GetTopK() != 5:
 		t.Errorf("GetTopK() = %d, want the default 5", cfg.GetTopK())
 	case cfg.GetSimilarityThreshold() != 0.7:

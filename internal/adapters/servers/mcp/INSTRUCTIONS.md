@@ -32,6 +32,8 @@ Don't recall when:
 - **The context is already established**, unless the topic shifts.
 - **Work is in progress** — files and conversation are the source of truth.
 
+These limits on contextual recall do not apply to the conflict check after saving new information.
+
 A few calls per conversation is normal. Recall on **every message** is not: each search is a round trip, and irrelevant memories crowd out the answer.
 
 ## Memory is the weakest source of truth
@@ -45,7 +47,18 @@ Stored facts can be stale or wrong. If memory contradicts the code, say so rathe
 - **`remember`** — save a fact; returns a short summary. That summary is what `recall` will later show, so write a self-contained statement.
 - **`recall`** — semantic search by natural-language `query`. Returns only the **top-K most relevant** matches with ID, date, and a short summary — never the full text.
 - **`read_fact`** — read one fact in full by `id` from `recall`. Use when a summary is too vague: exact wording, names, numbers, paths.
-- **`remove_fact_by_id`** — permanently delete a fact. Only when the user asks to forget something, or agrees that a stored fact is wrong.
+- **`remove_fact_by_id`** — permanently delete a fact only when the user explicitly requests its deletion. Confirming that it is wrong is not permission to delete it.
+
+## Conflicting or outdated facts
+
+When saving new information, follow this order even if the current context is already established:
+
+1. Save the new fact with `remember` first. Do not delete an older fact to make room for it.
+2. After a successful save, use `recall` to find related older facts. Use `read_fact` to check their full contents for a full or partial conflict; similarity or a short summary alone is not proof.
+3. For every confirmed conflict, proactively show the user the old fact's ID and relevant contents, explain the conflicting part and any still-valid information that deleting the whole fact would also remove, and ask whether to delete the old fact. Do this even if the user has forgotten the old fact exists.
+4. Call `remove_fact_by_id` only after the user explicitly requests its deletion, including explicitly confirming deletion of the identified fact. Agreeing that a fact is wrong is not permission to delete it. Declining or not answering leaves both facts stored.
+
+If the user already explicitly asked to delete the identified fact, carry out that request without asking again. Never infer permission from a correction, a newer fact, or a contradiction.
 
 ## Recall returns relevance, not inventory
 

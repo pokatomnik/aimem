@@ -18,8 +18,12 @@ Two storage backends are available; `AIMEM_QDRANT_HOST` chooses between them:
   machine. Set `AIMEM_QDRANT_HOST` to switch; see
   [Start the vector database](#4-start-the-vector-database-qdrant).
 
-With the embedded backend and a local model server, the binary makes no outbound
-request at all: the model it needs is already inside it.
+Embeddings require no network requests. Summarization sends the fact text over
+HTTP to `AIMEM_LLM_HOST`; the Qdrant backend sends storage requests to
+`AIMEM_QDRANT_HOST`. Either server can run on the user's computer or on another
+machine. If either server is remote, the corresponding requests and data leave
+the user's computer. With embedded storage and a local summarization server,
+these requests stay on the same computer, but summarization still uses HTTP.
 
 ## Features
 
@@ -44,8 +48,9 @@ request at all: the model it needs is already inside it.
   downloaded at run time. The model is fixed; there is no setting to choose
   another one.
 - A server that speaks the chat completions API, reachable over HTTP — a local
-  runtime or a hosted provider. This is the only network dependency at request
-  time.
+  runtime or a hosted provider — for summarization.
+- A Qdrant server reachable over HTTP, only when `AIMEM_QDRANT_HOST` is set.
+  Otherwise storage is embedded and needs no server.
 - [Docker](https://docs.docker.com/get-docker/) with the Compose plugin, only if
   you want to use the bundled Qdrant service.
 - The name of a text-generation model on that server. It is sent as the `model`
@@ -383,9 +388,10 @@ the embedded xvec index and for Qdrant alike, and any storage added later must
 keep it.
 
 A fact is written once and never patched in place. Writing the same text again is
-answered with `db already has fact` instead of overwriting it. A fact that ever
-had to change would be removed and inserted again — delete, then write — so a
-stored record is always the result of exactly one write.
+answered with `db already has fact` instead of overwriting it. Changed information
+is saved as a new fact rather than patched into the old record. For MCP
+assistants, the new fact is saved first; deleting the old fact requires an explicit
+user request — see [MCP server](#mcp-server).
 
 The rule follows from the identity: a fact's ID is the SHA-256 digest of its
 text, so the ID and the content always agree. Rewriting the content while keeping
@@ -472,6 +478,16 @@ The server exposes `remember`, `recall`, `read_fact`, and `remove_fact_by_id`. I
 usage instructions are embedded from
 `internal/adapters/servers/mcp/INSTRUCTIONS.md` and sent to the client on
 initialization.
+
+The instructions tell the assistant to save new information first, then search
+for related older facts and read their full contents to check for full or partial
+conflicts. For each conflict, it must show the old fact's ID and relevant contents,
+explain what conflicts and any still-valid information deletion would also lose,
+and ask whether to delete that fact. Deletion requires an explicit user request,
+including explicit confirmation of the proposed deletion; acknowledging that a
+fact is wrong is not enough. Until then, both facts remain stored. These are
+instructions for the client assistant, not server-side conflict detection or
+consent enforcement.
 
 The MCP tools authenticate the same way as the REST API. With Qdrant, every
 `tools/call` must carry an `Authorization: Bearer <token>` header, and the token

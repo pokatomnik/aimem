@@ -28,11 +28,8 @@ func ToolRecall(a mcpdeps.Authenticator, r mcpdeps.Recall, l mcpdeps.Logger) (
 ) {
 	tool := mcp.Tool{
 		Name: "recall",
-		Description: "Semantic search over saved facts/knowledge. Returns only the top-K most relevant matches, ranked " +
-			"by similarity, each with an ID, creation time, and a short summary — never the full text. Because it is a " +
-			"relevance search rather than a listing, an empty or short result does not mean nothing is stored, and it " +
-			"cannot enumerate everything that is remembered. When a summary is too short to answer from, call " +
-			"read_fact with that ID.",
+		Description: "Semantic search, not inventory: returns top-K IDs, dates, summaries, never full text. " +
+			"Use read_fact for details or conflicts.",
 	}
 
 	var handler mcp.ToolHandlerFor[recallInput, recallOutput] = func(

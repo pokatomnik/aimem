@@ -26,10 +26,8 @@ func ToolGetFact(a mcpdeps.Authenticator, r mcpdeps.GetFact, l mcpdeps.Logger) (
 ) {
 	tool := mcp.Tool{
 		Name: "read_fact",
-		Description: "Read one saved fact/knowledge in full by its ID. The recall tool returns only short " +
-			"summaries; call this with an ID from a recall result whenever the summary is not detailed enough " +
-			"to answer — exact wording, names, numbers, paths, or anything the summary may have dropped. " +
-			"The result contains the complete stored text plus the summary.",
+		Description: "Read a fact by ID from recall; returns full text and summary. " +
+			"Verify details and conflicts before proposing deletion.",
 	}
 
 	var handler mcp.ToolHandlerFor[getFactInput, getFactOutput] = func(

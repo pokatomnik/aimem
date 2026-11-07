@@ -125,6 +125,9 @@ func TestToolDescriptions(t *testing.T) {
 	got := map[string]string{}
 	for _, tool := range res.Tools {
 		got[tool.Name] = tool.Description
+		if words := len(strings.Fields(tool.Description)); words == 0 || words > 20 {
+			t.Errorf("%s description has %d words, want 1..20", tool.Name, words)
+		}
 	}
 
 	for _, want := range []string{"remember", "recall", "read_fact", "remove_fact_by_id"} {
@@ -214,6 +217,91 @@ func TestInstructionsCoverProactiveRecall(t *testing.T) {
 
 	if !strings.Contains(instr, "weakest source of truth") {
 		t.Error("instructions rank memory below the current context")
+	}
+}
+
+func TestInstructionsCoverConflictResolution(t *testing.T) {
+	cs, _ := connect(t, withAuth, deps())
+
+	init := cs.InitializeResult()
+	if init == nil {
+		t.Fatal("no initialize result")
+	}
+
+	instr := init.Instructions
+	for _, want := range []string{
+		"Save the new fact with `remember` first",
+		"After a successful save, use `recall`",
+		"Use `read_fact` to check their full contents",
+		"full or partial conflict",
+		"proactively show the user the old fact's ID and relevant contents",
+		"still-valid information",
+		"ask whether to delete the old fact",
+		"only after the user explicitly requests its deletion",
+		"confirming deletion of the identified fact",
+		"not permission to delete",
+		"Declining or not answering leaves both facts stored",
+		"without asking again",
+		"These limits on contextual recall do not apply to the conflict check",
+	} {
+		if !strings.Contains(instr, want) {
+			t.Errorf("instructions lost conflict-resolution guidance: %q", want)
+		}
+	}
+
+	if strings.Contains(instr, "or agrees that a stored fact is wrong") {
+		t.Error("instructions still allow deletion merely because the user says a fact is wrong")
+	}
+}
+
+func TestToolDescriptionsPreserveEssentialGuidance(t *testing.T) {
+	cs, ctx := connect(t, withAuth, deps())
+
+	res, err := cs.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	descriptions := map[string]string{}
+	for _, tool := range res.Tools {
+		descriptions[tool.Name] = tool.Description
+	}
+
+	guidance := map[string][]string{
+		"remember": {
+			"user-provided fact",
+			"short summary",
+			"recall and read_fact",
+			"check conflicts",
+		},
+		"recall": {
+			"Semantic search",
+			"not inventory",
+			"summaries, never full text",
+		},
+		"read_fact": {
+			"full text and summary",
+			"conflicts before proposing deletion",
+		},
+		"remove_fact_by_id": {
+			"Permanently delete",
+			"only on explicit user request",
+			"Ask whether to remove conflicting facts",
+			"success even if absent",
+		},
+	}
+	for name, fragments := range guidance {
+		t.Run(name, func(t *testing.T) {
+			description, ok := descriptions[name]
+			if !ok {
+				t.Fatalf("missing tool %q", name)
+			}
+			for _, want := range fragments {
+				if !strings.Contains(description, want) {
+					t.Errorf("description lost essential guidance: %q", want)
+				}
+			}
+		})
 	}
 }
 
