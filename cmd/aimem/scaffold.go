@@ -47,7 +47,7 @@ func scaffold(ctx context.Context, cfg *Config, logFile *os.File) (*cobra.Comman
 		return nil, err
 	}
 
-	embedder := aEmbedderPackage.New(ctx, logger)
+	embedder := aEmbedderPackage.New(ctx, logger, cfg)
 	llm := aLLMPackage.New(cfg, logger)
 
 	rec := ucRecallPackage.New(embedder, embeddedDB, cfg, logger)

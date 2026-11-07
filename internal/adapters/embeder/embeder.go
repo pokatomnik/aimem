@@ -12,6 +12,10 @@ import (
 )
 
 type (
+	config interface {
+		GetEmbeddingModelTTL() time.Duration
+	}
+
 	Embedder struct {
 		encoder     *engine.Encoder
 		initialized bool
@@ -22,12 +26,13 @@ type (
 	}
 )
 
-func New(ctx context.Context, logger logging.Logger) *Embedder {
+func New(ctx context.Context, logger logging.Logger, config config) *Embedder {
+	ttl := config.GetEmbeddingModelTTL()
 	embedder := &Embedder{logger: logger}
 
 	go func() {
 		for {
-			time.Sleep(periodicCheck)
+			time.Sleep(ttl)
 
 			if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				return

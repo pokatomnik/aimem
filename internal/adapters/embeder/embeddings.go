@@ -8,8 +8,6 @@ import (
 )
 
 const (
-	// TODO move to config
-	ttl           = time.Second * 10
 	periodicCheck = time.Second
 )
 

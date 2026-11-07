@@ -1,20 +1,25 @@
 package main
 
-import "github.com/caarlos0/env/v11"
+import (
+	"time"
+
+	"github.com/caarlos0/env/v11"
+)
 
 type Config struct {
-	LLMHost             string  `env:"AIMEM_LLM_HOST,notEmpty"`
-	LLMAPIKey           string  `env:"AIMEM_LLM_API_KEY"`
-	SummarizationModel  string  `env:"AIMEM_SUMMARIZATION_MODEL,notEmpty"`
-	TopK                int     `env:"AIMEM_TOP_K" envDefault:"5"`
-	SimilarityThreshold float32 `env:"AIMEM_SIMILARITY_THRESHOLD" envDefault:"0.7"`
-	Dimensions          uint    `env:"AIMEM_DIMENSIONS,notEmpty"`
-	WebHTTPHost         string  `env:"AIMEM_WEB_HTTP_HOST" envDefault:"127.0.0.1:8888"`
-	QdrantHost          string  `env:"AIMEM_QDRANT_HOST"`
-	QdrantAPIKey        string  `env:"AIMEM_QDRANT_API_KEY"`
-	UsersJSON           string  `env:"AIMEM_USERS_JSON"`
-	LogFile             string  `env:"LOG_FILE"`
-	LogLevel            string  `env:"LOG_LEVEL" envDefault:"info"`
+	LLMHost             string        `env:"AIMEM_LLM_HOST,notEmpty"`
+	LLMAPIKey           string        `env:"AIMEM_LLM_API_KEY"`
+	SummarizationModel  string        `env:"AIMEM_SUMMARIZATION_MODEL,notEmpty"`
+	EmbeddingModelTTL   time.Duration `env:"AIMEM_MODEL_MEMORY_TTL" envDefault:"10s"`
+	TopK                int           `env:"AIMEM_TOP_K" envDefault:"5"`
+	SimilarityThreshold float32       `env:"AIMEM_SIMILARITY_THRESHOLD" envDefault:"0.7"`
+	Dimensions          uint          `env:"AIMEM_DIMENSIONS,notEmpty"`
+	WebHTTPHost         string        `env:"AIMEM_WEB_HTTP_HOST" envDefault:"127.0.0.1:8888"`
+	QdrantHost          string        `env:"AIMEM_QDRANT_HOST"`
+	QdrantAPIKey        string        `env:"AIMEM_QDRANT_API_KEY"`
+	UsersJSON           string        `env:"AIMEM_USERS_JSON"`
+	LogFile             string        `env:"LOG_FILE"`
+	LogLevel            string        `env:"LOG_LEVEL" envDefault:"info"`
 }
 
 func GetConfig() (*Config, error) {
@@ -57,6 +62,10 @@ func (c *Config) GetLLMAPIKey() string {
 
 func (c *Config) GetSummarizationModel() string {
 	return c.SummarizationModel
+}
+
+func (c Config) GetEmbeddingModelTTL() time.Duration {
+	return c.EmbeddingModelTTL
 }
 
 func (c *Config) GetTopK() int {
