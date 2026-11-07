@@ -1,11 +1,10 @@
 package embeder
 
-import "github.com/pokatomnik/gomem/internal/adapters/embeder/engine"
+import (
+	"github.com/pokatomnik/gomem/internal/adapters/embeder/engine"
+)
 
 func (e *Embedder) getEncoder() (*engine.Encoder, error) {
-	e.mx.Lock()
-	defer e.mx.Unlock()
-
 	if e.initialized {
 		return e.encoder, nil
 	}
@@ -21,4 +20,9 @@ func (e *Embedder) getEncoder() (*engine.Encoder, error) {
 	e.encoder = encoder
 
 	return encoder, nil
+}
+
+func (e *Embedder) unloadEncoder() {
+	e.initialized = false
+	e.encoder = nil
 }
